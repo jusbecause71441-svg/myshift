@@ -181,6 +181,32 @@ class MyShiftApp {
             this.closeModal('addShiftModal');
         });
         
+        // Day Off checkbox
+        document.getElementById('isDayOff').addEventListener('change', (e) => {
+            const shiftDetailsFields = document.getElementById('shiftDetailsFields');
+            const inputs = shiftDetailsFields.querySelectorAll('input, select');
+            
+            if (e.target.checked) {
+                // Hide shift details when Day Off is checked
+                shiftDetailsFields.style.opacity = '0.5';
+                inputs.forEach(input => {
+                    if (input.id !== 'shiftDay') {
+                        input.required = false;
+                        input.disabled = true;
+                    }
+                });
+            } else {
+                // Show shift details when Day Off is unchecked
+                shiftDetailsFields.style.opacity = '1';
+                inputs.forEach(input => {
+                    if (input.id !== 'shiftDay') {
+                        input.required = true;
+                        input.disabled = false;
+                    }
+                });
+            }
+        });
+        
         // Shift form
         document.getElementById('shiftForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -317,21 +343,31 @@ class MyShiftApp {
             const shifts = await this.getShiftsForDay(this.currentWeek, dayName);
             
             html += `
-                <div class="day-card" data-day="${dayName}">
+                <div class="day-card ${shift.isDayOff ? 'day-off-card' : ''}" data-day="${dayName}">
                     <div class="day-header">
                         <span class="day-name">${dayName.charAt(0).toUpperCase() + dayName.slice(1)}</span>
                         <span class="day-date">${dayDate}</span>
                     </div>
                     <div class="shifts-container">
-                        ${shifts.length > 0 ? shifts.map(shift => `
-                            <div class="shift-item" data-shift-id="${shift.id}">
-                                <div class="shift-id">${shift.shiftId}</div>
-                                <div class="shift-details">
-                                    <span class="shift-time">🕐 ${this.formatTime(shift.signOn)} - ${this.formatTime(shift.finish)}</span>
-                                    <span class="shift-hours">${this.formatHours(shift.totalHours)}</span>
-                                </div>
-                            </div>
-                        `).join('') : '<div class="no-shifts">No shifts scheduled</div>'}
+                        ${shifts.length > 0 ? shifts.map(shift => {
+                            if (shift.isDayOff) {
+                                return `
+                                    <div class="day-off-item" data-shift-id="${shift.id}">
+                                        <div class="day-off-badge">OFF</div>
+                                    </div>
+                                `;
+                            } else {
+                                return `
+                                    <div class="shift-item" data-shift-id="${shift.id}">
+                                        <div class="shift-id">${shift.shiftId}</div>
+                                        <div class="shift-details">
+                                            <span class="shift-time">🕐 ${this.formatTime(shift.signOn)} - ${this.formatTime(shift.finish)}</span>
+                                            <span class="shift-hours">${this.formatHours(shift.totalHours)}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }).join('') : '<div class="no-shifts">No shifts scheduled</div>'}
                     </div>
                 </div>
             `;
@@ -339,8 +375,8 @@ class MyShiftApp {
         
         weekView.innerHTML = html;
         
-        // Add click listeners to shift items
-        document.querySelectorAll('.shift-item').forEach(item => {
+        // Add click listeners to shift items and day off items
+        document.querySelectorAll('.shift-item, .day-off-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const shiftId = parseInt(item.dataset.shiftId);
@@ -472,11 +508,16 @@ class MyShiftApp {
         });
     }
     
-    // Open add shift modal
+        // Open add shift modal
     openAddShiftModal(day = null) {
         this.editingShift = null;
         document.getElementById('addModalTitle').textContent = 'Add New Shift';
         document.getElementById('shiftForm').reset();
+        
+        // Reset Day Off checkbox and trigger change event
+        document.getElementById('isDayOff').checked = false;
+        const event = new Event('change');
+        document.getElementById('isDayOff').dispatchEvent(event);
         
         if (day) {
             document.getElementById('shiftDay').value = day;
@@ -494,22 +535,31 @@ class MyShiftApp {
         
         // Populate form
         document.getElementById('shiftDay').value = this.currentShift.day;
-        document.getElementById('shiftId').value = this.currentShift.shiftId;
-        document.getElementById('signOnTime').value = this.currentShift.signOn;
-        document.getElementById('finishTime').value = this.currentShift.finish;
+        document.getElementById('isDayOff').checked = this.currentShift.isDayOff || false;
         
-        // Handle total hours - support both old and new formats
-        if (typeof this.currentShift.totalHours === 'object' && this.currentShift.totalHours.hours !== undefined) {
-            // New format
-            document.getElementById('totalHoursHours').value = this.currentShift.totalHours.hours;
-            document.getElementById('totalHoursMinutes').value = this.currentShift.totalHours.minutes;
-        } else {
-            // Legacy format - convert to hours/minutes
-            const totalHours = parseFloat(this.currentShift.totalHours);
-            const hours = Math.floor(totalHours);
-            const minutes = Math.round((totalHours - hours) * 60);
-            document.getElementById('totalHoursHours').value = hours;
-            document.getElementById('totalHoursMinutes').value = minutes;
+        // Handle Day Off checkbox change
+        const event = new Event('change');
+        document.getElementById('isDayOff').dispatchEvent(event);
+        
+        if (!this.currentShift.isDayOff) {
+            // Populate regular shift fields
+            document.getElementById('shiftId').value = this.currentShift.shiftId;
+            document.getElementById('signOnTime').value = this.currentShift.signOn;
+            document.getElementById('finishTime').value = this.currentShift.finish;
+            
+            // Handle total hours - support both old and new formats
+            if (typeof this.currentShift.totalHours === 'object' && this.currentShift.totalHours.hours !== undefined) {
+                // New format
+                document.getElementById('totalHoursHours').value = this.currentShift.totalHours.hours;
+                document.getElementById('totalHoursMinutes').value = this.currentShift.totalHours.minutes;
+            } else {
+                // Legacy format - convert to hours/minutes
+                const totalHours = parseFloat(this.currentShift.totalHours);
+                const hours = Math.floor(totalHours);
+                const minutes = Math.round((totalHours - hours) * 60);
+                document.getElementById('totalHoursHours').value = hours;
+                document.getElementById('totalHoursMinutes').value = minutes;
+            }
         }
         
         // Close details modal and open edit modal
@@ -519,24 +569,43 @@ class MyShiftApp {
     
     // Save shift
     async saveShift() {
-        const hours = parseInt(document.getElementById('totalHoursHours').value);
-        const minutes = parseInt(document.getElementById('totalHoursMinutes').value);
+        const isDayOff = document.getElementById('isDayOff').checked;
         
-        const formData = {
-            week: this.currentWeek,
-            day: document.getElementById('shiftDay').value,
-            shiftId: document.getElementById('shiftId').value,
-            signOn: document.getElementById('signOnTime').value,
-            finish: document.getElementById('finishTime').value,
-            totalHours: { hours, minutes }
-        };
+        let formData;
+        
+        if (isDayOff) {
+            // Save Day Off
+            formData = {
+                week: this.currentWeek,
+                day: document.getElementById('shiftDay').value,
+                isDayOff: true,
+                shiftId: 'DAY OFF',
+                signOn: '00:00',
+                finish: '00:00',
+                totalHours: { hours: 0, minutes: 0 }
+            };
+        } else {
+            // Save regular shift
+            const hours = parseInt(document.getElementById('totalHoursHours').value);
+            const minutes = parseInt(document.getElementById('totalHoursMinutes').value);
+            
+            formData = {
+                week: this.currentWeek,
+                day: document.getElementById('shiftDay').value,
+                isDayOff: false,
+                shiftId: document.getElementById('shiftId').value,
+                signOn: document.getElementById('signOnTime').value,
+                finish: document.getElementById('finishTime').value,
+                totalHours: { hours, minutes }
+            };
+        }
         
         try {
             if (this.editingShift) {
                 // Update existing shift
                 await this.updateShift(this.editingShift.id, formData);
             } else {
-                // Add new shift
+                // Add new shift/day off
                 await this.addShift(formData);
             }
             
