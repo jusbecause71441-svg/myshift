@@ -9,7 +9,7 @@ class MyShiftApp {
         // Initialize dynamic weeks
         this.initializeWeeks();
         
-        this.days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        this.days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         
         this.init();
     }
@@ -18,11 +18,11 @@ class MyShiftApp {
     initializeWeeks() {
         const today = new Date();
         const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-        const daysUntilSunday = (7 - currentDay) % 7; // Days until next Sunday
+        const daysSinceSunday = currentDay; // Days since last Sunday (0 if today is Sunday)
         
         // Find the start of current week (Sunday)
         const currentWeekStart = new Date(today);
-        currentWeekStart.setDate(today.getDate() + daysUntilSunday);
+        currentWeekStart.setDate(today.getDate() - daysSinceSunday);
         currentWeekStart.setHours(0, 0, 0, 0); // Set to midnight
         
         // Generate 3 weeks: current, next, and week after next
