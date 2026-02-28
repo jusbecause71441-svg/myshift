@@ -207,26 +207,19 @@ class MyShiftApp {
             }
         });
         
-        // Copy days functionality - handle both click and touch events
-        document.querySelectorAll('input[name="copyDay"]').forEach(checkbox => {
-            const label = checkbox.parentElement;
-            
+        // Copy days functionality - handle button toggles
+        document.querySelectorAll('.copy-day-btn').forEach(button => {
             // Handle click events
-            label.addEventListener('click', (e) => {
+            button.addEventListener('click', (e) => {
                 e.preventDefault();
-                checkbox.checked = !checkbox.checked;
+                button.classList.toggle('selected');
                 this.updateCopyDaysState();
             });
             
             // Handle touch events for mobile
-            label.addEventListener('touchstart', (e) => {
+            button.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                checkbox.checked = !checkbox.checked;
-                this.updateCopyDaysState();
-            });
-            
-            // Handle change events as backup
-            checkbox.addEventListener('change', () => {
+                button.classList.toggle('selected');
                 this.updateCopyDaysState();
             });
         });
@@ -445,15 +438,14 @@ class MyShiftApp {
     // Update copy days state based on selected day
     updateCopyDaysState() {
         const selectedDay = document.getElementById('shiftDay').value;
-        const copyCheckboxes = document.querySelectorAll('input[name="copyDay"]');
+        const copyButtons = document.querySelectorAll('.copy-day-btn');
         
-        copyCheckboxes.forEach(checkbox => {
-            // Uncheck all first
-            checkbox.checked = false;
+        copyButtons.forEach(button => {
+            const day = button.dataset.day;
             
-            // Check only the selected day (to prevent copying to same day)
-            if (checkbox.value !== selectedDay) {
-                checkbox.checked = true;
+            // Uncheck the selected day (prevent copying to same day)
+            if (day === selectedDay) {
+                button.classList.remove('selected');
             }
         });
     }
@@ -611,8 +603,8 @@ class MyShiftApp {
     async saveShift() {
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
-        const copyDays = Array.from(document.querySelectorAll('input[name="copyDay"]:checked'))
-            .map(cb => cb.value);
+        const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
+        const copyDays = Array.from(copyButtons).map(btn => btn.dataset.day);
         
         let formData;
         
@@ -644,8 +636,8 @@ class MyShiftApp {
         }
         
         try {
-            // Save to all selected days
-            const daysToSave = [selectedDay, ...copyDays];
+            // Only save to explicitly selected days
+            const daysToSave = copyDays.length > 0 ? copyDays : [selectedDay];
             
             for (const day of daysToSave) {
                 const dayFormData = { ...formData, day };

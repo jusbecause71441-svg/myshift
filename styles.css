@@ -580,45 +580,53 @@ body {
     margin-top: 0.5rem;
 }
 
-.copy-days-container label {
+.copy-day-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.375rem 0.5rem;
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 8px;
-    font-size: 0.75rem;
-    font-weight: 400;
+    padding: 0.75rem 0.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(74, 144, 217, 0.2);
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
     color: #2c2c2c;
     cursor: pointer;
     transition: all 0.2s ease;
-    border: 1px solid rgba(74, 144, 217, 0.1);
+    min-height: 48px;
+    touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
-    touch-action: manipulation;
 }
 
-.copy-days-container label:hover {
+.copy-day-btn:hover {
     background: rgba(74, 144, 217, 0.1);
-    border-color: rgba(74, 144, 217, 0.2);
+    border-color: rgba(74, 144, 217, 0.3);
+    transform: translateY(-1px);
 }
 
-.copy-days-container label:active {
-    background: rgba(74, 144, 217, 0.2);
-    transform: scale(0.95);
+.copy-day-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(74, 144, 217, 0.2);
 }
 
-.copy-days-container input[type="checkbox"] {
-    margin-right: 0.375rem;
-    accent-color: #4a90d9;
-    pointer-events: none;
+.copy-day-btn.selected {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(74, 144, 217, 0.3);
 }
 
-.copy-days-container input[type="checkbox"]:checked + span {
-    color: #4a90d9;
-    font-weight: 500;
+.copy-day-btn.selected:hover {
+    background: #357abd;
+    border-color: #357abd;
+}
+
+.copy-day-btn.selected:active {
+    background: #2968a3;
+    border-color: #2968a3;
 }
 
 /* Day Off Badge */
