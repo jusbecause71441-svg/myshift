@@ -1,5 +1,5 @@
 // MyShift Service Worker
-const CACHE_NAME = 'myshift-v4'; // Updated version to cache full-cover icons
+const CACHE_NAME = 'myshift-v5'; // Updated version to cache cropped bus icons
 const urlsToCache = [
   '/',
   '/index.html',
