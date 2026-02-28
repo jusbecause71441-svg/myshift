@@ -1,5 +1,5 @@
 // MyShift Service Worker
-const CACHE_NAME = 'myshift-v2'; // Updated version to clear old cache
+const CACHE_NAME = 'myshift-v3'; // Updated version to cache new custom icons
 const urlsToCache = [
   '/',
   '/index.html',
