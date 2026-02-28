@@ -636,8 +636,8 @@ class MyShiftApp {
         }
         
         try {
-            // Only save to explicitly selected days
-            const daysToSave = copyDays.length > 0 ? copyDays : [selectedDay];
+            // Save to primary day AND all selected copy days
+            const daysToSave = [selectedDay, ...copyDays];
             
             for (const day of daysToSave) {
                 const dayFormData = { ...formData, day };
