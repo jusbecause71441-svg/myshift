@@ -99,6 +99,18 @@ body {
     border-color: rgba(74, 144, 217, 0.3);
 }
 
+.week-btn.past-week {
+    opacity: 0.7;
+    color: #999999;
+    border-color: rgba(74, 144, 217, 0.1);
+}
+
+.week-btn.past-week:hover {
+    opacity: 0.8;
+    color: #666666;
+    border-color: rgba(74, 144, 217, 0.15);
+}
+
 .week-btn.active {
     background: #4a90d9;
     color: #ffffff;

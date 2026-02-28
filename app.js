@@ -2,26 +2,126 @@
 class MyShiftApp {
     constructor() {
         this.db = null;
-        this.currentWeek = 1; // Default to middle week
+        this.currentWeek = 1; // Default to middle week (current week)
         this.currentShift = null;
         this.editingShift = null;
         
-        // Week configuration
-        this.weeks = [
-            { start: new Date('2026-03-01'), label: '1 Mar 26' },
-            { start: new Date('2026-03-08'), label: '8 Mar 26' },
-            { start: new Date('2026-03-15'), label: '15 Mar 26' }
-        ];
+        // Initialize dynamic weeks
+        this.initializeWeeks();
         
         this.days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         
         this.init();
     }
     
+    // Initialize dynamic weeks based on current date
+    initializeWeeks() {
+        const today = new Date();
+        const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const daysUntilSunday = (7 - currentDay) % 7; // Days until next Sunday
+        
+        // Find the start of current week (Sunday)
+        const currentWeekStart = new Date(today);
+        currentWeekStart.setDate(today.getDate() + daysUntilSunday);
+        currentWeekStart.setHours(0, 0, 0, 0); // Set to midnight
+        
+        // Generate 3 weeks: current, next, and week after next
+        this.weeks = [];
+        for (let i = 0; i < 3; i++) {
+            const weekStart = new Date(currentWeekStart);
+            weekStart.setDate(currentWeekStart.getDate() + (i * 7));
+            
+            this.weeks.push({
+                start: weekStart,
+                label: this.formatWeekLabel(weekStart)
+            });
+        }
+        
+        // Clean up old shift data
+        this.cleanupOldShifts();
+    }
+    
+    // Format week label (e.g., "1 Mar 26")
+    formatWeekLabel(date) {
+        const day = date.getDate();
+        const month = date.toLocaleDateString('en-US', { month: 'short' });
+        const year = date.getFullYear().toString().slice(-2);
+        return `${day} ${month} ${year}`;
+    }
+    
+    // Clean up old shift data (past weeks)
+    async cleanupOldShifts() {
+        if (!this.db) return;
+        
+        try {
+            const oldestWeekStart = this.weeks[0].start;
+            
+            // Get all shifts
+            const transaction = this.db.transaction(['shifts'], 'readwrite');
+            const store = transaction.objectStore('shifts');
+            const request = store.getAll();
+            
+            request.onsuccess = () => {
+                const shifts = request.result;
+                const shiftsToDelete = [];
+                
+                // Find shifts from past weeks
+                shifts.forEach(shift => {
+                    const shiftWeek = this.weeks[shift.week];
+                    if (shiftWeek && shiftWeek.start < oldestWeekStart) {
+                        shiftsToDelete.push(shift.id);
+                    }
+                });
+                
+                // Delete old shifts and their photos
+                shiftsToDelete.forEach(async (shiftId) => {
+                    // Delete shift
+                    await this.deleteShiftFromDB(shiftId);
+                    
+                    // Delete associated photos
+                    const photos = await this.getShiftPhotos(shiftId);
+                    for (const photo of photos) {
+                        await this.deletePhotoFromDB(photo.id);
+                    }
+                });
+                
+                if (shiftsToDelete.length > 0) {
+                    console.log(`Cleaned up ${shiftsToDelete.length} old shifts`);
+                }
+            };
+        } catch (error) {
+            console.error('Error cleaning up old shifts:', error);
+        }
+    }
+    
+    // Check if week needs to be updated (call this periodically)
+    checkWeekUpdate() {
+        const today = new Date();
+        const currentWeekStart = this.weeks[1].start; // Middle week should be current
+        const daysSinceWeekStart = Math.floor((today - currentWeekStart) / (1000 * 60 * 60 * 24));
+        
+        // If we're more than 7 days past the current week start, update weeks
+        if (daysSinceWeekStart >= 7) {
+            this.initializeWeeks();
+            this.renderWeekView();
+            console.log('Weeks updated for new period');
+        }
+    }
+    
     async init() {
         await this.initDB();
         this.setupEventListeners();
         this.renderWeekView();
+        
+        // Check for week updates every hour
+        setInterval(() => this.checkWeekUpdate(), 60 * 60 * 1000);
+        
+        // Also check on app focus/visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.checkWeekUpdate();
+            }
+        });
     }
     
     // Initialize IndexedDB
@@ -195,6 +295,11 @@ class MyShiftApp {
     // Render week view
     async renderWeekView() {
         const weekView = document.getElementById('weekView');
+        const weekSelector = document.querySelector('.week-selector');
+        
+        // Update week selector buttons
+        this.updateWeekSelector();
+        
         const weekStart = this.weeks[this.currentWeek].start;
         
         let html = '';
@@ -246,12 +351,45 @@ class MyShiftApp {
         // Add click listeners to day cards for adding shifts
         document.querySelectorAll('.day-card').forEach(card => {
             card.addEventListener('click', (e) => {
-                if (e.target === card || e.target.closest('.day-header') || e.target.classList.contains('no-shifts')) {
-                    const day = card.dataset.day;
-                    this.openAddShiftModal(day);
+                if (e.target.classList.contains('no-shifts') || e.target.classList.contains('day-card')) {
+                    const dayName = card.dataset.day;
+                    this.openAddShiftModal(dayName);
                 }
             });
         });
+    }
+    
+    // Update week selector buttons
+    updateWeekSelector() {
+        const weekSelector = document.querySelector('.week-selector');
+        
+        let html = '';
+        this.weeks.forEach((week, index) => {
+            const isActive = index === this.currentWeek;
+            const isCurrentWeek = this.isCurrentWeek(week.start);
+            const isPastWeek = week.start < new Date();
+            
+            html += `
+                <button class="week-btn ${isActive ? 'active' : ''} ${isPastWeek ? 'past-week' : ''}" 
+                        data-week="${index}" 
+                        onclick="app.selectWeek(${index})">
+                    ${week.label}
+                    ${isCurrentWeek ? ' (Current)' : ''}
+                </button>
+            `;
+        });
+        
+        weekSelector.innerHTML = html;
+    }
+    
+    // Check if a date is in the current week
+    isCurrentWeek(weekStart) {
+        const today = new Date();
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+        
+        return today >= weekStart && today <= weekEnd;
     }
     
     // Get shifts for a specific day
