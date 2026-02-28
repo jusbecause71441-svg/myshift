@@ -343,7 +343,7 @@ class MyShiftApp {
             const shifts = await this.getShiftsForDay(this.currentWeek, dayName);
             
             html += `
-                <div class="day-card ${shift.isDayOff ? 'day-off-card' : ''}" data-day="${dayName}">
+                <div class="day-card ${shifts.length > 0 && shifts.some(shift => shift.isDayOff) ? 'day-off-card' : ''}" data-day="${dayName}">
                     <div class="day-header">
                         <span class="day-name">${dayName.charAt(0).toUpperCase() + dayName.slice(1)}</span>
                         <span class="day-date">${dayDate}</span>
