@@ -207,8 +207,25 @@ class MyShiftApp {
             }
         });
         
-        // Copy days functionality
+        // Copy days functionality - handle both click and touch events
         document.querySelectorAll('input[name="copyDay"]').forEach(checkbox => {
+            const label = checkbox.parentElement;
+            
+            // Handle click events
+            label.addEventListener('click', (e) => {
+                e.preventDefault();
+                checkbox.checked = !checkbox.checked;
+                this.updateCopyDaysState();
+            });
+            
+            // Handle touch events for mobile
+            label.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                checkbox.checked = !checkbox.checked;
+                this.updateCopyDaysState();
+            });
+            
+            // Handle change events as backup
             checkbox.addEventListener('change', () => {
                 this.updateCopyDaysState();
             });

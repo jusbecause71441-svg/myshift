@@ -593,6 +593,11 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     border: 1px solid rgba(74, 144, 217, 0.1);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    touch-action: manipulation;
 }
 
 .copy-days-container label:hover {
@@ -600,9 +605,15 @@ body {
     border-color: rgba(74, 144, 217, 0.2);
 }
 
+.copy-days-container label:active {
+    background: rgba(74, 144, 217, 0.2);
+    transform: scale(0.95);
+}
+
 .copy-days-container input[type="checkbox"] {
     margin-right: 0.375rem;
     accent-color: #4a90d9;
+    pointer-events: none;
 }
 
 .copy-days-container input[type="checkbox"]:checked + span {
