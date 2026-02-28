@@ -600,16 +600,27 @@ class MyShiftApp {
             // Disable button during processing
             selectBtn.disabled = true;
             
+            // Check if Tesseract is loaded
+            if (typeof Tesseract === 'undefined') {
+                throw new Error('Tesseract.js not loaded from CDN');
+            }
+            
+            console.log('Starting OCR processing...');
+            
             // Create Tesseract worker
             const worker = await Tesseract.createWorker('eng', 1, {
-                logger: m => console.log('OCR:', m),
+                logger: m => console.log('OCR Progress:', m),
             });
+            
+            console.log('Tesseract worker created, recognizing text...');
             
             // Perform OCR
             const { data: { text } } = await worker.recognize(file);
             
+            console.log('OCR Result:', text);
+            
             // Extract shift information
-            const extractedData = this.parseShiftInfo(text);
+            const extractedData = this.parseConnecteamShiftSheet(text);
             
             if (extractedData) {
                 // Populate form fields
@@ -628,8 +639,23 @@ class MyShiftApp {
             await worker.terminate();
             
         } catch (error) {
-            console.error('OCR Error:', error);
-            status.textContent = '❌ Error processing photo';
+            console.error('OCR Error Details:', error);
+            console.error('Error Stack:', error.stack);
+            
+            // Show detailed error
+            let errorMessage = '❌ Error processing photo';
+            
+            if (error.message.includes('Tesseract')) {
+                errorMessage = '❌ OCR library not loaded properly';
+            } else if (error.message.includes('network')) {
+                errorMessage = '❌ Network error loading OCR';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = '❌ OCR processing timed out';
+            } else if (error.message) {
+                errorMessage = `❌ ${error.message}`;
+            }
+            
+            status.textContent = errorMessage;
             status.className = 'ocr-status error';
         } finally {
             // Hide processing overlay
@@ -638,6 +664,101 @@ class MyShiftApp {
             // Re-enable button
             selectBtn.disabled = false;
         }
+    }
+    
+    // Parse Connecteam shift sheet specifically
+    parseConnecteamShiftSheet(ocrText) {
+        const text = ocrText;
+        console.log('Parsing Connecteam shift sheet:', text);
+        
+        // Connecteam-specific patterns
+        const patterns = {
+            shiftId: [
+                /SHIFT\s*([0-9]{4,5})/i,
+                /Shift\s*([0-9]{4,5})/i,
+                /shift\s*[:\s]*([0-9]{4,5})/i
+            ],
+            signOn: [
+                /Sign\s*On\s*([0-9]{4})/i,
+                /Sign\s*on\s*([0-9]{4})/i,
+                /SIGN\s*ON\s*([0-9]{4})/i
+            ],
+            finish: [
+                /Depot\s*Finish\s*([0-9]{4})/i,
+                /Depot\s*finish\s*([0-9]{4})/i,
+                /DEPOT\s*FINISH\s*([0-9]{4})/i
+            ],
+            totalHours: [
+                /Total\s*Hours\s*([0-9]+(?:\.[0-9]+)?)/i,
+                /Total\s*hours\s*([0-9]+(?:\.[0-9]+)?)/i,
+                /TOTAL\s*HOURS\s*([0-9]+(?:\.[0-9]+)?)/i
+            ]
+        };
+        
+        const extracted = {};
+        
+        // Extract Shift ID
+        for (const pattern of patterns.shiftId) {
+            const match = text.match(pattern);
+            if (match) {
+                extracted.shiftId = match[1];
+                console.log('Found Shift ID:', match[1]);
+                break;
+            }
+        }
+        
+        // Extract Sign On time (convert 4-digit to HH:MM format)
+        for (const pattern of patterns.signOn) {
+            const match = text.match(pattern);
+            if (match) {
+                const timeStr = match[1];
+                if (timeStr.length === 4) {
+                    extracted.signOn = `${timeStr.substring(0, 2)}:${timeStr.substring(2)}`;
+                } else {
+                    extracted.signOn = timeStr;
+                }
+                console.log('Found Sign On:', extracted.signOn);
+                break;
+            }
+        }
+        
+        // Extract Finish time (convert 4-digit to HH:MM format)
+        for (const pattern of patterns.finish) {
+            const match = text.match(pattern);
+            if (match) {
+                const timeStr = match[1];
+                if (timeStr.length === 4) {
+                    extracted.finish = `${timeStr.substring(0, 2)}:${timeStr.substring(2)}`;
+                } else {
+                    extracted.finish = timeStr;
+                }
+                console.log('Found Finish:', extracted.finish);
+                break;
+            }
+        }
+        
+        // Extract Total Hours
+        for (const pattern of patterns.totalHours) {
+            const match = text.match(pattern);
+            if (match) {
+                const hoursStr = match[1];
+                if (hoursStr.includes('.')) {
+                    const [hours, minutes] = hoursStr.split('.');
+                    extracted.totalHours = parseInt(hours);
+                    extracted.totalMinutes = Math.round((parseFloat(minutes) * 60) / 100);
+                } else {
+                    extracted.totalHours = parseInt(hoursStr);
+                    extracted.totalMinutes = 0;
+                }
+                console.log('Found Total Hours:', extracted.totalHours, 'hours', extracted.totalMinutes, 'minutes');
+                break;
+            }
+        }
+        
+        console.log('Extracted data:', extracted);
+        
+        // Return data if we found anything
+        return Object.keys(extracted).length > 0 ? extracted : null;
     }
     
     // Parse OCR text to extract shift information
