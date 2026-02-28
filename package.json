@@ -1,0 +1,16 @@
+{
+  "name": "myshift",
+  "version": "1.0.0",
+  "description": "A Progressive Web App (PWA) designed for bus drivers to manage their shift schedules with ease.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "canvas": "^3.2.1"
+  }
+}
