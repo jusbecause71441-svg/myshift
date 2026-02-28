@@ -207,6 +207,13 @@ class MyShiftApp {
             }
         });
         
+        // Copy days functionality
+        document.querySelectorAll('input[name="copyDay"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.updateCopyDaysState();
+            });
+        });
+        
         // Shift form
         document.getElementById('shiftForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -418,7 +425,21 @@ class MyShiftApp {
         weekSelector.innerHTML = html;
     }
     
-    // Check if a date is in the current week
+    // Update copy days state based on selected day
+    updateCopyDaysState() {
+        const selectedDay = document.getElementById('shiftDay').value;
+        const copyCheckboxes = document.querySelectorAll('input[name="copyDay"]');
+        
+        copyCheckboxes.forEach(checkbox => {
+            // Uncheck all first
+            checkbox.checked = false;
+            
+            // Check only the selected day (to prevent copying to same day)
+            if (checkbox.value !== selectedDay) {
+                checkbox.checked = true;
+            }
+        });
+    }
     isCurrentWeek(weekStart) {
         const today = new Date();
         const weekEnd = new Date(weekStart);
@@ -521,6 +542,8 @@ class MyShiftApp {
         
         if (day) {
             document.getElementById('shiftDay').value = day;
+            // Update copy days state
+            this.updateCopyDaysState();
         }
         
         this.openModal('addShiftModal');
@@ -570,6 +593,9 @@ class MyShiftApp {
     // Save shift
     async saveShift() {
         const isDayOff = document.getElementById('isDayOff').checked;
+        const selectedDay = document.getElementById('shiftDay').value;
+        const copyDays = Array.from(document.querySelectorAll('input[name="copyDay"]:checked'))
+            .map(cb => cb.value);
         
         let formData;
         
@@ -577,7 +603,7 @@ class MyShiftApp {
             // Save Day Off
             formData = {
                 week: this.currentWeek,
-                day: document.getElementById('shiftDay').value,
+                day: selectedDay,
                 isDayOff: true,
                 shiftId: 'DAY OFF',
                 signOn: '00:00',
@@ -591,7 +617,7 @@ class MyShiftApp {
             
             formData = {
                 week: this.currentWeek,
-                day: document.getElementById('shiftDay').value,
+                day: selectedDay,
                 isDayOff: false,
                 shiftId: document.getElementById('shiftId').value,
                 signOn: document.getElementById('signOnTime').value,
@@ -601,12 +627,19 @@ class MyShiftApp {
         }
         
         try {
-            if (this.editingShift) {
-                // Update existing shift
-                await this.updateShift(this.editingShift.id, formData);
-            } else {
-                // Add new shift/day off
-                await this.addShift(formData);
+            // Save to all selected days
+            const daysToSave = [selectedDay, ...copyDays];
+            
+            for (const day of daysToSave) {
+                const dayFormData = { ...formData, day };
+                
+                if (this.editingShift) {
+                    // Update existing shift
+                    await this.updateShift(this.editingShift.id, dayFormData);
+                } else {
+                    // Add new shift/day off
+                    await this.addShift(dayFormData);
+                }
             }
             
             this.closeModal('addShiftModal');

@@ -135,6 +135,26 @@ if ("serviceWorker" in navigator) {
                         </div>
                         
                         <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="isDayOff">
+                                Mark as Day Off
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Copy to other days:</label>
+                            <div class="copy-days-container">
+                                <label><input type="checkbox" name="copyDay" value="sunday"> Sun</label>
+                                <label><input type="checkbox" name="copyDay" value="monday"> Mon</label>
+                                <label><input type="checkbox" name="copyDay" value="tuesday"> Tue</label>
+                                <label><input type="checkbox" name="copyDay" value="wednesday"> Wed</label>
+                                <label><input type="checkbox" name="copyDay" value="thursday"> Thu</label>
+                                <label><input type="checkbox" name="copyDay" value="friday"> Fri</label>
+                                <label><input type="checkbox" name="copyDay" value="saturday"> Sat</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
                             <label for="shiftId">Shift ID:</label>
                             <input type="text" id="shiftId" required placeholder="e.g., S123">
                         </div>
