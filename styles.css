@@ -135,19 +135,41 @@ body {
 /* Day Cards */
 .day-card {
     background: #ffffff;
-    border-radius: 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
     padding: 1.25rem;
-    border: 1px solid rgba(74, 144, 217, 0.1);
     transition: all 0.3s ease;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
 }
 
 .day-card:hover {
-    background: #ffffff;
+    background: #f8f9fa;
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-    border-color: rgba(74, 144, 217, 0.2);
+    border-color: #4a90d9;
+}
+
+/* Weekend day cards */
+.day-card[data-day="sunday"] {
+    background: #fff0f0;
+    border-color: #fecaca;
+}
+
+.day-card[data-day="saturday"] {
+    background: #f0f4ff;
+    border-color: #b3d9ff;
+}
+
+.day-card[data-day="sunday"]:hover {
+    background: #ffe0e0;
+    border-color: #fbb6ce;
+}
+
+.day-card[data-day="saturday"]:hover {
+    background: #e0f2ff;
+    border-color: #93c5fd;
 }
 
 .day-header {
