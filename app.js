@@ -606,13 +606,12 @@ class MyShiftApp {
         const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
         const copyDays = Array.from(copyButtons).map(btn => btn.dataset.day);
         
-        let formData;
+        // Create base shift data
+        let baseFormData;
         
         if (isDayOff) {
-            // Save Day Off
-            formData = {
+            baseFormData = {
                 week: this.currentWeek,
-                day: selectedDay,
                 isDayOff: true,
                 shiftId: 'DAY OFF',
                 signOn: '00:00',
@@ -620,13 +619,11 @@ class MyShiftApp {
                 totalHours: { hours: 0, minutes: 0 }
             };
         } else {
-            // Save regular shift
             const hours = parseInt(document.getElementById('totalHoursHours').value);
             const minutes = parseInt(document.getElementById('totalHoursMinutes').value);
             
-            formData = {
+            baseFormData = {
                 week: this.currentWeek,
-                day: selectedDay,
                 isDayOff: false,
                 shiftId: document.getElementById('shiftId').value,
                 signOn: document.getElementById('signOnTime').value,
@@ -636,18 +633,29 @@ class MyShiftApp {
         }
         
         try {
-            // Save to primary day AND all selected copy days
-            const daysToSave = [selectedDay, ...copyDays];
+            // ALWAYS save to primary day first
+            console.log('Saving to primary day:', selectedDay);
+            const primaryDayData = { ...baseFormData, day: selectedDay };
             
-            for (const day of daysToSave) {
-                const dayFormData = { ...formData, day };
+            if (this.editingShift) {
+                // Update existing shift on primary day
+                await this.updateShift(this.editingShift.id, primaryDayData);
+            } else {
+                // Add new shift to primary day
+                await this.addShift(primaryDayData);
+            }
+            
+            // THEN save to each additionally selected copy day
+            for (const copyDay of copyDays) {
+                console.log('Saving to copy day:', copyDay);
+                const copyDayData = { ...baseFormData, day: copyDay };
                 
                 if (this.editingShift) {
-                    // Update existing shift
-                    await this.updateShift(this.editingShift.id, dayFormData);
+                    // Update existing shift on copy day
+                    await this.updateShift(this.editingShift.id, copyDayData);
                 } else {
-                    // Add new shift/day off
-                    await this.addShift(dayFormData);
+                    // Add new shift to copy day
+                    await this.addShift(copyDayData);
                 }
             }
             
