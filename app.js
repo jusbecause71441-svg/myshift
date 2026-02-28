@@ -224,10 +224,8 @@ class MyShiftApp {
             });
         });
         
-        // OCR functionality
-        document.getElementById('extractFromPhoto').addEventListener('click', () => {
-            this.extractShiftInfoFromPhoto();
-        });
+        // Initialize OCR functionality
+        this.setupOCR();
         
         // Shift form
         document.getElementById('shiftForm').addEventListener('submit', (e) => {
@@ -544,42 +542,86 @@ class MyShiftApp {
         });
     }
     
-        // OCR functionality
-    async extractShiftInfoFromPhoto() {
-        const photoInput = document.getElementById('photoInput');
-        const ocrStatus = document.getElementById('ocrStatus');
-        const extractBtn = document.getElementById('extractFromPhoto');
+        // OCR functionality - completely redesigned
+    setupOCR() {
+        const selectBtn = document.getElementById('selectPhotoForOCR');
+        const photoInput = document.getElementById('ocrPhotoInput');
+        const preview = document.getElementById('ocrPreview');
+        const previewImg = document.getElementById('ocrPreviewImg');
+        const processing = document.getElementById('ocrProcessing');
+        const status = document.getElementById('ocrStatus');
         
-        if (!photoInput.files || photoInput.files.length === 0) {
-            ocrStatus.textContent = 'Please select a photo first';
-            ocrStatus.style.color = '#ef4444';
-            return;
-        }
+        // Handle button click to open file picker
+        selectBtn.addEventListener('click', () => {
+            photoInput.click();
+        });
         
-        const file = photoInput.files[0];
-        ocrStatus.textContent = 'Processing photo...';
-        ocrStatus.style.color = '#f59e0b';
-        extractBtn.disabled = true;
+        // Handle file selection
+        photoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Show preview
+            this.showOCRPreview(file);
+            
+            // Start OCR processing
+            await this.processOCR(file);
+        });
+    }
+    
+    // Show OCR preview
+    showOCRPreview(file) {
+        const preview = document.getElementById('ocrPreview');
+        const previewImg = document.getElementById('ocrPreviewImg');
+        const processing = document.getElementById('ocrProcessing');
+        const status = document.getElementById('ocrStatus');
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImg.src = e.target.result;
+            preview.style.display = 'block';
+            processing.style.display = 'flex';
+            
+            // Update status
+            status.textContent = 'Processing photo...';
+            status.className = 'ocr-status processing';
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    // Process OCR
+    async processOCR(file) {
+        const status = document.getElementById('ocrStatus');
+        const processing = document.getElementById('ocrProcessing');
+        const selectBtn = document.getElementById('selectPhotoForOCR');
         
         try {
-            // Create worker for Tesseract
+            // Disable button during processing
+            selectBtn.disabled = true;
+            
+            // Create Tesseract worker
             const worker = await Tesseract.createWorker('eng', 1, {
-                logger: m => console.log(m),
+                logger: m => console.log('OCR:', m),
             });
             
             // Perform OCR
             const { data: { text } } = await worker.recognize(file);
             
-            // Extract shift information from OCR text
+            // Extract shift information
             const extractedData = this.parseShiftInfo(text);
             
             if (extractedData) {
+                // Populate form fields
                 this.populateFormWithExtractedData(extractedData);
-                ocrStatus.textContent = '✅ Shift info extracted successfully!';
-                ocrStatus.style.color = '#10b981';
+                
+                // Show success
+                status.textContent = '✅ Shift info extracted successfully!';
+                status.className = 'ocr-status success';
             } else {
-                ocrStatus.textContent = '⚠️ No shift information found in photo';
-                ocrStatus.style.color = '#f59e0b';
+                // Show no data found
+                status.textContent = '⚠️ No shift information found in photo';
+                status.className = 'ocr-status error';
             }
             
             // Cleanup
@@ -587,10 +629,14 @@ class MyShiftApp {
             
         } catch (error) {
             console.error('OCR Error:', error);
-            ocrStatus.textContent = '❌ Error processing photo';
-            ocrStatus.style.color = '#ef4444';
+            status.textContent = '❌ Error processing photo';
+            status.className = 'ocr-status error';
         } finally {
-            extractBtn.disabled = false;
+            // Hide processing overlay
+            processing.style.display = 'none';
+            
+            // Re-enable button
+            selectBtn.disabled = false;
         }
     }
     
@@ -598,12 +644,13 @@ class MyShiftApp {
     parseShiftInfo(ocrText) {
         const text = ocrText.toLowerCase();
         
-        // Look for shift patterns
+        // Enhanced patterns for better recognition
         const patterns = {
             shiftId: [
                 /shift\s*[:\s]*([a-z0-9]+)/i,
                 /id\s*[:\s]*([a-z0-9]+)/i,
-                /([a-z]\d{3,4})/i
+                /([a-z]\d{3,4})/i,
+                /(\d{3,4})/i
             ],
             signOn: [
                 /sign\s*on\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
@@ -638,7 +685,10 @@ class MyShiftApp {
         for (const pattern of patterns.signOn) {
             const match = text.match(pattern);
             if (match) {
-                extracted.signOn = match[1] + ':' + (match[2] || '00');
+                let time = match[1];
+                if (match[2]) time += ':' + match[2];
+                else time += ':00';
+                extracted.signOn = time;
                 break;
             }
         }
@@ -647,7 +697,10 @@ class MyShiftApp {
         for (const pattern of patterns.finish) {
             const match = text.match(pattern);
             if (match) {
-                extracted.finish = match[1] + ':' + (match[2] || '00');
+                let time = match[1];
+                if (match[2]) time += ':' + match[2];
+                else time += ':00';
+                extracted.finish = time;
                 break;
             }
         }
@@ -673,31 +726,31 @@ class MyShiftApp {
     
     // Populate form with extracted data
     populateFormWithExtractedData(data) {
+        const fields = [];
+        
         if (data.shiftId) {
             document.getElementById('shiftId').value = data.shiftId;
+            fields.push('Shift ID');
         }
         if (data.signOn) {
             document.getElementById('signOnTime').value = data.signOn;
+            fields.push('Sign On');
         }
         if (data.finish) {
             document.getElementById('finishTime').value = data.finish;
+            fields.push('Finish');
         }
         if (data.totalHours !== undefined) {
             document.getElementById('totalHoursHours').value = data.totalHours || 0;
             document.getElementById('totalHoursMinutes').value = data.totalMinutes || 0;
+            fields.push('Total Hours');
         }
         
-        // Show success feedback
-        const fields = ['shiftId', 'signOnTime', 'finishTime', 'totalHoursHours', 'totalHoursMinutes'];
-        const populatedFields = fields.filter(field => {
-            const element = document.getElementById(field);
-            return element && element.value;
-        });
-        
-        if (populatedFields.length > 0) {
+        // Show which fields were populated
+        if (fields.length > 0) {
             const status = document.getElementById('ocrStatus');
-            status.textContent = `📋 Populated: ${populatedFields.join(', ')}`;
-            status.style.color = '#10b981';
+            status.textContent = `📋 Auto-filled: ${fields.join(', ')}`;
+            status.className = 'ocr-status success';
         }
     }
     openAddShiftModal(day = null) {

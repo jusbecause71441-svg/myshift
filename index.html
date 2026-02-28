@@ -156,9 +156,21 @@ if ("serviceWorker" in navigator) {
                         <!-- OCR Section -->
                         <div class="form-group">
                             <label>📷 Auto-Extract from Photo (OCR):</label>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <button type="button" class="ocr-btn" id="extractFromPhoto">Extract Shift Info</button>
-                                <div id="ocrStatus" style="font-size: 14px; color: #666;"></div>
+                            <div class="ocr-container">
+                                <button type="button" class="ocr-select-btn" id="selectPhotoForOCR">
+                                    📷 Select Photo for OCR
+                                </button>
+                                <input type="file" id="ocrPhotoInput" accept="image/*" style="display: none;">
+                                <div id="ocrPreview" class="ocr-preview" style="display: none;">
+                                    <img id="ocrPreviewImg" class="ocr-preview-img" alt="OCR preview">
+                                    <div class="ocr-preview-overlay">
+                                        <div id="ocrProcessing" class="ocr-processing" style="display: none;">
+                                            <div class="ocr-spinner"></div>
+                                            <div>Extracting...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="ocrStatus" class="ocr-status"></div>
                             </div>
                         </div>
                         
