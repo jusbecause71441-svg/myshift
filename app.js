@@ -224,6 +224,11 @@ class MyShiftApp {
             });
         });
         
+        // OCR functionality
+        document.getElementById('extractFromPhoto').addEventListener('click', () => {
+            this.extractShiftInfoFromPhoto();
+        });
+        
         // Shift form
         document.getElementById('shiftForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -539,7 +544,162 @@ class MyShiftApp {
         });
     }
     
-        // Open add shift modal
+        // OCR functionality
+    async extractShiftInfoFromPhoto() {
+        const photoInput = document.getElementById('photoInput');
+        const ocrStatus = document.getElementById('ocrStatus');
+        const extractBtn = document.getElementById('extractFromPhoto');
+        
+        if (!photoInput.files || photoInput.files.length === 0) {
+            ocrStatus.textContent = 'Please select a photo first';
+            ocrStatus.style.color = '#ef4444';
+            return;
+        }
+        
+        const file = photoInput.files[0];
+        ocrStatus.textContent = 'Processing photo...';
+        ocrStatus.style.color = '#f59e0b';
+        extractBtn.disabled = true;
+        
+        try {
+            // Create worker for Tesseract
+            const worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => console.log(m),
+            });
+            
+            // Perform OCR
+            const { data: { text } } = await worker.recognize(file);
+            
+            // Extract shift information from OCR text
+            const extractedData = this.parseShiftInfo(text);
+            
+            if (extractedData) {
+                this.populateFormWithExtractedData(extractedData);
+                ocrStatus.textContent = '✅ Shift info extracted successfully!';
+                ocrStatus.style.color = '#10b981';
+            } else {
+                ocrStatus.textContent = '⚠️ No shift information found in photo';
+                ocrStatus.style.color = '#f59e0b';
+            }
+            
+            // Cleanup
+            await worker.terminate();
+            
+        } catch (error) {
+            console.error('OCR Error:', error);
+            ocrStatus.textContent = '❌ Error processing photo';
+            ocrStatus.style.color = '#ef4444';
+        } finally {
+            extractBtn.disabled = false;
+        }
+    }
+    
+    // Parse OCR text to extract shift information
+    parseShiftInfo(ocrText) {
+        const text = ocrText.toLowerCase();
+        
+        // Look for shift patterns
+        const patterns = {
+            shiftId: [
+                /shift\s*[:\s]*([a-z0-9]+)/i,
+                /id\s*[:\s]*([a-z0-9]+)/i,
+                /([a-z]\d{3,4})/i
+            ],
+            signOn: [
+                /sign\s*on\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
+                /start\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
+                /([0-9]{1,2}[:\s]*[0-9]{2})\s*(?:am|pm)?/i
+            ],
+            finish: [
+                /sign\s*off\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
+                /finish\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
+                /end\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
+                /([0-9]{1,2}[:\s]*[0-9]{2})\s*(?:am|pm)?/i
+            ],
+            totalHours: [
+                /total\s*hours?\s*([0-9]+)\s*(?:hours?|hrs?|h)?/i,
+                /([0-9]+)\s*(?:hours?|hrs?|h)/i,
+                /([0-9]+)\s*(?:hours?|hrs?|h)?\s*([0-9]+)\s*(?:minutes?|mins?|m)?/i
+            ]
+        };
+        
+        const extracted = {};
+        
+        // Extract Shift ID
+        for (const pattern of patterns.shiftId) {
+            const match = text.match(pattern);
+            if (match) {
+                extracted.shiftId = match[1] || match[2];
+                break;
+            }
+        }
+        
+        // Extract Sign On time
+        for (const pattern of patterns.signOn) {
+            const match = text.match(pattern);
+            if (match) {
+                extracted.signOn = match[1] + ':' + (match[2] || '00');
+                break;
+            }
+        }
+        
+        // Extract Finish time
+        for (const pattern of patterns.finish) {
+            const match = text.match(pattern);
+            if (match) {
+                extracted.finish = match[1] + ':' + (match[2] || '00');
+                break;
+            }
+        }
+        
+        // Extract Total Hours
+        for (const pattern of patterns.totalHours) {
+            const match = text.match(pattern);
+            if (match) {
+                if (match[1] && match[2]) {
+                    extracted.totalHours = parseInt(match[1]);
+                    extracted.totalMinutes = parseInt(match[2]);
+                } else if (match[1]) {
+                    extracted.totalHours = parseInt(match[1]);
+                    extracted.totalMinutes = 0;
+                }
+                break;
+            }
+        }
+        
+        // Return data if we found anything
+        return Object.keys(extracted).length > 0 ? extracted : null;
+    }
+    
+    // Populate form with extracted data
+    populateFormWithExtractedData(data) {
+        if (data.shiftId) {
+            document.getElementById('shiftId').value = data.shiftId;
+        }
+        if (data.signOn) {
+            document.getElementById('signOnTime').value = data.signOn;
+        }
+        if (data.finish) {
+            document.getElementById('finishTime').value = data.finish;
+        }
+        if (data.totalHours !== undefined) {
+            document.getElementById('totalHoursHours').value = data.totalHours || 0;
+            document.getElementById('totalHoursMinutes').value = data.totalMinutes || 0;
+        }
+        
+        // Show success feedback
+        const fields = ['shiftId', 'signOnTime', 'finishTime', 'totalHoursHours', 'totalHoursMinutes'];
+        const populatedFields = fields.filter(field => {
+            const element = document.getElementById(field);
+            return element && element.value;
+        });
+        
+        if (populatedFields.length > 0) {
+            const status = document.getElementById('ocrStatus');
+            status.textContent = `📋 Populated: ${populatedFields.join(', ')}`;
+            status.style.color = '#10b981';
+        }
+    }
     openAddShiftModal(day = null) {
         this.editingShift = null;
         document.getElementById('addModalTitle').textContent = 'Add New Shift';
