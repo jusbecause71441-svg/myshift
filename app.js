@@ -475,23 +475,24 @@ class MyShiftApp {
         });
     }
     
-    // Open shift details modal
+    // Open shift details modal (READ-ONLY - no data modification)
     async openShiftDetails(shiftId) {
         const shift = await this.getShift(shiftId);
         if (!shift) return;
         
+        // Store reference for viewing only (no modification)
         this.currentShift = shift;
         
-        // Populate modal
+        // Populate modal with shift data (no modification)
         document.getElementById('modalShiftId').textContent = shift.shiftId;
         document.getElementById('modalSignOn').textContent = this.formatTime(shift.signOn);
         document.getElementById('modalFinish').textContent = this.formatTime(shift.finish);
         document.getElementById('modalTotalHours').textContent = this.formatHours(shift.totalHours);
         
-        // Load photos
+        // Load photos (read-only display)
         await this.loadShiftPhotos(shiftId);
         
-        // Show modal
+        // Show modal for viewing only
         this.openModal('shiftModal');
     }
     
@@ -633,29 +634,26 @@ class MyShiftApp {
         }
         
         try {
-            // ALWAYS save to primary day first
-            console.log('Saving to primary day:', selectedDay);
-            const primaryDayData = { ...baseFormData, day: selectedDay };
+            // Collect all days to save (primary + copy days)
+            const allDaysToSave = [selectedDay, ...copyDays];
             
-            if (this.editingShift) {
-                // Update existing shift on primary day
-                await this.updateShift(this.editingShift.id, primaryDayData);
-            } else {
-                // Add new shift to primary day
-                await this.addShift(primaryDayData);
-            }
-            
-            // THEN save to each additionally selected copy day
-            for (const copyDay of copyDays) {
-                console.log('Saving to copy day:', copyDay);
-                const copyDayData = { ...baseFormData, day: copyDay };
+            for (const day of allDaysToSave) {
+                console.log('Processing day:', day);
                 
-                if (this.editingShift) {
-                    // Update existing shift on copy day
-                    await this.updateShift(this.editingShift.id, copyDayData);
+                // Check if shift already exists on this day
+                const existingShifts = await this.getShiftsForDay(this.currentWeek, day);
+                const existingShift = existingShifts[0]; // Get first (and should be only) shift
+                
+                const dayFormData = { ...baseFormData, day };
+                
+                if (existingShift) {
+                    // Update existing shift
+                    console.log('Updating existing shift on day:', day);
+                    await this.updateShift(existingShift.id, dayFormData);
                 } else {
-                    // Add new shift to copy day
-                    await this.addShift(copyDayData);
+                    // Add new shift
+                    console.log('Adding new shift on day:', day);
+                    await this.addShift(dayFormData);
                 }
             }
             
