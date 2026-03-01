@@ -723,6 +723,106 @@ body {
     border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
+/* Shift Selection Popup */
+.shift-selection-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    padding: 1rem;
+}
+
+.shift-selection-content {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+}
+
+.shift-selection-content h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2c2c2c;
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.shift-selection-content p {
+    font-size: 18px;
+    color: #666666;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.shift-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.shift-option-btn {
+    background: #f8f9fa;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c2c2c;
+}
+
+.shift-option-btn:hover {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(74, 144, 217, 0.3);
+}
+
+.shift-option-btn strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 0.25rem;
+}
+
+.shift-option-btn small {
+    font-size: 16px;
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.shift-selection-cancel {
+    background: #ef4444;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.shift-selection-cancel:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
 /* OCR Button */
 .ocr-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

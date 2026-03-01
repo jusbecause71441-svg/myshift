@@ -607,26 +607,32 @@ class MyShiftApp {
             
             console.log('Starting OCR processing...');
             
-            // Create Tesseract worker
+            // Optimize image for faster processing
+            const optimizedFile = await this.optimizeImageForOCR(file);
+            
+            // Create Tesseract worker with faster settings
             const worker = await Tesseract.createWorker('eng', 1, {
                 logger: m => console.log('OCR Progress:', m),
             });
             
             console.log('Tesseract worker created, recognizing text...');
             
-            // Perform OCR
-            const { data: { text } } = await worker.recognize(file);
+            // Perform OCR on optimized image
+            const { data: { text } } = await worker.recognize(optimizedFile);
             
             console.log('OCR Result:', text);
             
-            // Extract shift information
+            // Extract all shift information
             const extractedData = this.parseConnecteamShiftSheet(text);
             
-            if (extractedData) {
-                // Populate form fields
-                this.populateFormWithExtractedData(extractedData);
-                
-                // Show success
+            if (extractedData && extractedData.multipleShifts && extractedData.multipleShifts.length > 1) {
+                // Show shift selection popup
+                this.showShiftSelectionPopup(extractedData.multipleShifts);
+                status.textContent = '📋 Multiple shifts found - please select yours';
+                status.className = 'ocr-status processing';
+            } else if (extractedData && extractedData.shiftData) {
+                // Single shift found, populate form
+                this.populateFormWithExtractedData(extractedData.shiftData);
                 status.textContent = '✅ Shift info extracted successfully!';
                 status.className = 'ocr-status success';
             } else {
@@ -666,18 +672,174 @@ class MyShiftApp {
         }
     }
     
+    // Optimize image for faster OCR processing
+    async optimizeImageForOCR(file) {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                // Calculate new dimensions (max 1000px width)
+                const maxWidth = 1000;
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth) {
+                    height = (maxWidth / width) * height;
+                    width = maxWidth;
+                }
+                
+                // Set canvas dimensions
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw and optimize image
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to blob
+                canvas.toBlob((blob) => {
+                    resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+                }, 'image/jpeg', 0.8);
+            };
+            
+            img.src = URL.createObjectURL(file);
+        });
+    }
+    
+    // Show shift selection popup
+    showShiftSelectionPopup(shifts) {
+        // Create popup HTML
+        const popupHtml = `
+            <div class="shift-selection-popup" id="shiftSelectionPopup">
+                <div class="shift-selection-content">
+                    <h3>Which shift is yours?</h3>
+                    <p>We found multiple shifts in the image:</p>
+                    <div class="shift-options">
+                        ${shifts.map(shift => `
+                            <button class="shift-option-btn" data-shift='${JSON.stringify(shift)}'>
+                                <strong>SHIFT ${shift.shiftId}</strong><br>
+                                <small>Sign On: ${shift.signOn} | Finish: ${shift.finish} | Hours: ${shift.totalHours}h ${shift.totalMinutes}m</small>
+                            </button>
+                        `).join('')}
+                    </div>
+                    <button class="shift-selection-cancel" id="cancelShiftSelection">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        // Add popup to body
+        document.body.insertAdjacentHTML('beforeend', popupHtml);
+        
+        // Add event listeners
+        document.querySelectorAll('.shift-option-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const shiftData = JSON.parse(e.target.dataset.shift);
+                this.populateFormWithExtractedData(shiftData);
+                this.closeShiftSelectionPopup();
+                
+                // Update status
+                const status = document.getElementById('ocrStatus');
+                status.textContent = '✅ Shift info extracted successfully!';
+                status.className = 'ocr-status success';
+            });
+        });
+        
+        document.getElementById('cancelShiftSelection').addEventListener('click', () => {
+            this.closeShiftSelectionPopup();
+            
+            // Update status
+            const status = document.getElementById('ocrStatus');
+            status.textContent = '⚠️ Shift selection cancelled';
+            status.className = 'ocr-status error';
+        });
+    }
+    
+    // Close shift selection popup
+    closeShiftSelectionPopup() {
+        const popup = document.getElementById('shiftSelectionPopup');
+        if (popup) {
+            popup.remove();
+        }
+    }
+    
     // Parse Connecteam shift sheet specifically
     parseConnecteamShiftSheet(ocrText) {
         const text = ocrText;
         console.log('Parsing Connecteam shift sheet:', text);
         
-        // Connecteam-specific patterns
+        // Find all shifts in the text
+        const allShifts = this.extractAllShifts(text);
+        
+        if (allShifts.length === 0) {
+            return null; // No shifts found
+        } else if (allShifts.length === 1) {
+            // Single shift found
+            return {
+                shiftData: allShifts[0],
+                multipleShifts: null
+            };
+        } else {
+            // Multiple shifts found
+            return {
+                shiftData: null,
+                multipleShifts: allShifts
+            };
+        }
+    }
+    
+    // Extract all shifts from OCR text
+    extractAllShifts(text) {
+        const shifts = [];
+        
+        // Find all shift IDs and their associated data
+        const shiftIdPattern = /SHIFT\s*([0-9]{4,5})/gi;
+        const shiftMatches = [...text.matchAll(shiftIdPattern)];
+        
+        for (const shiftMatch of shiftMatches) {
+            const shiftId = shiftMatch[1];
+            const shiftStart = shiftMatch.index;
+            
+            // Extract data for this specific shift
+            const shiftData = this.extractShiftData(text, shiftId, shiftStart);
+            if (shiftData) {
+                shifts.push(shiftData);
+            }
+        }
+        
+        // If no SHIFT patterns found, try alternative patterns
+        if (shifts.length === 0) {
+            const altPatterns = [
+                /Shift\s*([0-9]{4,5})/gi,
+                /([0-9]{4,5})/gi
+            ];
+            
+            for (const pattern of altPatterns) {
+                const matches = [...text.matchAll(pattern)];
+                for (const match of matches) {
+                    const shiftId = match[1];
+                    if (!shifts.find(s => s.shiftId === shiftId)) {
+                        const shiftData = this.extractShiftData(text, shiftId, match.index);
+                        if (shiftData) {
+                            shifts.push(shiftData);
+                        }
+                    }
+                }
+            }
+        }
+        
+        console.log('Found shifts:', shifts);
+        return shifts;
+    }
+    
+    // Extract data for a specific shift
+    extractShiftData(text, shiftId, startIndex) {
+        // Look for associated times near this shift ID
+        const contextStart = Math.max(0, startIndex - 100);
+        const contextEnd = Math.min(text.length, startIndex + 200);
+        const context = text.substring(contextStart, contextEnd);
+        
         const patterns = {
-            shiftId: [
-                /SHIFT\s*([0-9]{4,5})/i,
-                /Shift\s*([0-9]{4,5})/i,
-                /shift\s*[:\s]*([0-9]{4,5})/i
-            ],
             signOn: [
                 /Sign\s*On\s*([0-9]{4})/i,
                 /Sign\s*on\s*([0-9]{4})/i,
@@ -695,21 +857,11 @@ class MyShiftApp {
             ]
         };
         
-        const extracted = {};
+        const extracted = { shiftId };
         
-        // Extract Shift ID
-        for (const pattern of patterns.shiftId) {
-            const match = text.match(pattern);
-            if (match) {
-                extracted.shiftId = match[1];
-                console.log('Found Shift ID:', match[1]);
-                break;
-            }
-        }
-        
-        // Extract Sign On time (convert 4-digit to HH:MM format)
+        // Extract Sign On time
         for (const pattern of patterns.signOn) {
-            const match = text.match(pattern);
+            const match = context.match(pattern);
             if (match) {
                 const timeStr = match[1];
                 if (timeStr.length === 4) {
@@ -717,14 +869,13 @@ class MyShiftApp {
                 } else {
                     extracted.signOn = timeStr;
                 }
-                console.log('Found Sign On:', extracted.signOn);
                 break;
             }
         }
         
-        // Extract Finish time (convert 4-digit to HH:MM format)
+        // Extract Finish time
         for (const pattern of patterns.finish) {
-            const match = text.match(pattern);
+            const match = context.match(pattern);
             if (match) {
                 const timeStr = match[1];
                 if (timeStr.length === 4) {
@@ -732,14 +883,13 @@ class MyShiftApp {
                 } else {
                     extracted.finish = timeStr;
                 }
-                console.log('Found Finish:', extracted.finish);
                 break;
             }
         }
         
         // Extract Total Hours
         for (const pattern of patterns.totalHours) {
-            const match = text.match(pattern);
+            const match = context.match(pattern);
             if (match) {
                 const hoursStr = match[1];
                 if (hoursStr.includes('.')) {
@@ -750,15 +900,16 @@ class MyShiftApp {
                     extracted.totalHours = parseInt(hoursStr);
                     extracted.totalMinutes = 0;
                 }
-                console.log('Found Total Hours:', extracted.totalHours, 'hours', extracted.totalMinutes, 'minutes');
                 break;
             }
         }
         
-        console.log('Extracted data:', extracted);
+        // Only return if we found at least some data
+        if (extracted.signOn || extracted.finish || extracted.totalHours !== undefined) {
+            return extracted;
+        }
         
-        // Return data if we found anything
-        return Object.keys(extracted).length > 0 ? extracted : null;
+        return null;
     }
     
     // Parse OCR text to extract shift information
