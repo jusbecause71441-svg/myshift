@@ -554,6 +554,14 @@ class MyShiftApp {
 // OCR Setup & Auto-Fill Function
 // -----------------------------
 setupOCR() {
+    // Check if Tesseract is loaded
+    if (typeof Tesseract === 'undefined') {
+        console.error('Tesseract.js not loaded');
+        return;
+    }
+    
+    console.log('Tesseract.js loaded successfully:', typeof Tesseract);
+
     const selectBtn = document.getElementById('selectPhotoForOCR');
     const photoInput = document.getElementById('ocrPhotoInput');
     const preview = document.getElementById('ocrPreview');
@@ -584,6 +592,8 @@ setupOCR() {
         status.textContent = '';
 
         try {
+            console.log('Starting OCR processing...');
+            
             // OCR 수행 (Tesseract.js)
             const { data: { text } } = await Tesseract.recognize(file, 'eng', {
                 logger: m => {
@@ -591,11 +601,10 @@ setupOCR() {
                     if (m.status === 'recognizing text') {
                         status.textContent = `Processing photo... ${Math.round(m.progress * 100)}%`;
                     }
-                },
-                // Timeout 30초 설정
-                workerPath: 'https://unpkg.com/tesseract.js@4/dist/worker.min.js',
-                corePath: 'https://unpkg.com/tesseract.js-core@2.1.3/tesseract-core.wasm.js'
+                }
             });
+
+            console.log('OCR Result:', text);
 
             // OCR 텍스트 전처리
             const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
@@ -637,8 +646,9 @@ setupOCR() {
             }
 
             status.textContent = '✅ OCR completed';
+            console.log('OCR completed successfully');
         } catch (err) {
-            console.error(err);
+            console.error('OCR Error:', err);
             status.textContent = '❌ OCR failed';
         } finally {
             processing.style.display = 'none';
