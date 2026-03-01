@@ -570,11 +570,11 @@ class MyShiftApp {
         const shiftIdInput = document.getElementById('shiftId');
         const shiftId = shiftIdInput ? shiftIdInput.value.trim() : '';
         
-        console.log('Shift data:', { isDayOff, selectedDay, shiftId, shiftIdInput });
+        console.log('Shift data:', { isDayOff, selectedDay, shiftId });
         
         // Validate required fields
         if (!selectedDay || (!isDayOff && !shiftId)) {
-            alert('Please fill in all required fields');
+            alert('Please enter Shift ID');
             return;
         }
         
@@ -721,39 +721,22 @@ class MyShiftApp {
             
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
-        });
-    }
-    
     // Handle photo upload
     async handlePhotoUpload(files) {
-        // Get the current shift ID from the form
+        // Get current shift ID from form
         const shiftId = document.getElementById('shiftId').value.trim();
         const selectedDay = document.getElementById('shiftDay').value;
         
-        // Find or create shift for this day
-        let currentShift = null;
+        // Find existing shift for this day
         const existingShifts = await this.getShiftsForDay(this.currentWeek, selectedDay);
         
-        if (existingShifts.length > 0) {
-            currentShift = existingShifts[0];
-        } else {
-            // Only create a temporary shift if no shift ID provided AND no existing shift
-            if (!shiftId) {
-                const tempShiftData = {
-                    week: this.currentWeek,
-                    day: selectedDay,
-                    isDayOff: false,
-                    shiftId: 'TEMP_SHIFT'
-                };
-                const newShiftId = await this.addShift(tempShiftData);
-                currentShift = { ...tempShiftData, id: newShiftId };
-            } else {
-                // Don't create temporary shift if user provided shift ID
-                // Let them save the shift properly first
-                alert('Please save the shift first, then upload photos');
-                return;
-            }
+        if (existingShifts.length === 0) {
+            alert('Please save shift first, then upload photos');
+            document.getElementById('photoInput').value = '';
+            return;
         }
+        
+        const currentShift = existingShifts[0];
         
         for (const file of files) {
             if (file.type.startsWith('image/')) {
@@ -763,7 +746,7 @@ class MyShiftApp {
                         await this.savePhoto(currentShift.id, e.target.result, file.name);
                         console.log('Photo saved successfully for shift:', currentShift.id);
                         
-                        // If we're in a shift details modal, refresh the photos
+                        // If we're in a shift details modal, refresh photos
                         if (this.currentShift && this.currentShift.id === currentShift.id) {
                             await this.loadShiftPhotos(currentShift.id);
                         }
