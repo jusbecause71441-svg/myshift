@@ -126,7 +126,7 @@ body {
     transition: all 0.3s ease;
     cursor: pointer;
     border: 2px solid transparent;
-    min-height: 180px;
+    min-height: 160px;
     display: flex;
     flex-direction: column;
 }
@@ -221,22 +221,23 @@ body {
 
 /* Large Shift ID */
 .shift-id-large {
-    font-size: 1.75rem;
+    font-size: 2rem;
     font-weight: 800;
     color: #1e293b;
     margin-bottom: 0.5rem;
     text-align: center;
+    line-height: 1.2;
 }
 
 /* Photo Thumbnail */
 .shift-photo-thumbnail {
-    width: 60px;
-    height: 60px;
-    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
     overflow: hidden;
     margin: 0.5rem auto 0;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
 }
 
@@ -272,6 +273,27 @@ body {
     font-size: 1.25rem;
     font-weight: 800;
     color: #92400e;
+}
+
+/* Duplicate Shifts */
+.duplicate-shift {
+    opacity: 0.6;
+    cursor: default !important;
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+.duplicate-shift:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.duplicate-shift .shift-id-large {
+    color: #94a3b8 !important;
+}
+
+.duplicate-shift .day-off-badge {
+    color: #94a3b8 !important;
 }
 
 /* Modals */
@@ -667,7 +689,12 @@ body {
     }
     
     .shift-id-large {
-        font-size: 1.5rem;
+        font-size: 1.75rem;
+    }
+    
+    .shift-photo-thumbnail {
+        width: 35px;
+        height: 35px;
     }
     
     .modal-content {
