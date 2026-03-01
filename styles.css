@@ -159,13 +159,13 @@ body {
 }
 
 .day-name {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #1e293b;
 }
 
 .day-date {
-    font-size: 0.875rem;
+    font-size: 1.1rem;
     color: #64748b;
     font-weight: 600;
 }
@@ -227,6 +227,26 @@ body {
     margin-bottom: 0.5rem;
     text-align: center;
     line-height: 1.2;
+}
+
+/* Shift Content Layout */
+.shift-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.shift-content .shift-id-large {
+    margin-bottom: 0;
+    flex: 1;
+    text-align: left;
+}
+
+.shift-content .shift-photo-thumbnail {
+    margin: 0;
+    flex-shrink: 0;
 }
 
 /* Photo Thumbnail */
@@ -685,7 +705,11 @@ body {
     }
     
     .day-name {
-        font-size: 1.125rem;
+        font-size: 1.25rem;
+    }
+    
+    .day-date {
+        font-size: 1rem;
     }
     
     .shift-id-large {

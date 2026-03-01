@@ -341,21 +341,21 @@ class MyShiftApp {
                                 return `
                                     <div class="day-off-item ${!isOriginal ? 'duplicate-shift' : ''}" data-shift-id="${shift.id}">
                                         <div class="day-off-badge">
-                                            ${isOriginal ? 'OFF' : '✅'}
+                                            ${isOriginal ? 'OFF' : 'OFF'}
                                         </div>
                                     </div>
                                 `;
                             } else {
                                 return `
                                     <div class="shift-item ${!isOriginal ? 'duplicate-shift' : ''}" data-shift-id="${shift.id}">
-                                        <div class="shift-id-large">
-                                            ${isOriginal ? shift.shiftId : '✅'}
+                                        <div class="shift-content">
+                                            <div class="shift-id-large">#${shift.shiftId}</div>
+                                            ${photos.length > 0 ? `
+                                                <div class="shift-photo-thumbnail" onclick="app.openPhotoFullscreen('${photos[0].data}')">
+                                                    <img src="${photos[0].data}" alt="Shift photo">
+                                                </div>
+                                            ` : ''}
                                         </div>
-                                        ${photos.length > 0 && isOriginal ? `
-                                            <div class="shift-photo-thumbnail" onclick="app.openPhotoFullscreen('${photos[0].data}')">
-                                                <img src="${photos[0].data}" alt="Shift photo">
-                                            </div>
-                                        ` : ''}
                                     </div>
                                 `;
                             }
