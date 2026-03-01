@@ -152,27 +152,6 @@ if ("serviceWorker" in navigator) {
                             <input type="text" id="shiftId" required placeholder="e.g., S123">
                         </div>
                         
-                        <!-- OCR Section -->
-                        <div class="form-group">
-                            <label>📷 Auto-Extract from Photo (OCR):</label>
-                            <div class="ocr-container">
-                                <button type="button" class="ocr-select-btn" id="selectPhotoForOCR">
-                                    📷 Select Photo for OCR
-                                </button>
-                                <input type="file" id="ocrPhotoInput" accept="image/*" style="display: none;">
-                                <div id="ocrPreview" class="ocr-preview" style="display: none;">
-                                    <img id="ocrPreviewImg" class="ocr-preview-img" alt="OCR preview">
-                                    <div class="ocr-preview-overlay">
-                                        <div id="ocrProcessing" class="ocr-processing" style="display: none;">
-                                            <div class="ocr-spinner"></div>
-                                            <div>Extracting...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="ocrStatus" class="ocr-status"></div>
-                            </div>
-                        </div>
-                        
                         <div class="form-group">
                             <label for="signOnTime">Sign On Time (24-hour format, e.g., 08:35 or 20:35):</label>
                             <input type="time" id="signOnTime" required>

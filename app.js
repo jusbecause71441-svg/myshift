@@ -1,10 +1,4 @@
 // MyShift App - Bus Driver Schedule Manager
-// Claude AI Configuration - moved inline to fix loading issues
-const CLAUDE_API_KEY = 'sk-ant-api03-8Q2yGj3zGhJvE6c6JgQ7V3Ff8y6mKbWqJ5kKp1Qh-6p4g8g';
-const CLAUDE_API_ENDPOINT = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
-const CLAUDE_MAX_TOKENS = 1000;
-const CLAUDE_TIMEOUT = 15000; // 15 seconds
 
 class MyShiftApp {
     constructor() {
@@ -118,7 +112,6 @@ class MyShiftApp {
     async init() {
         await this.initDB();
         this.setupEventListeners();
-        this.setupOCR();
         this.renderWeekView();
         
         // Check for week updates every hour
@@ -230,15 +223,6 @@ class MyShiftApp {
                 button.classList.toggle('selected');
                 this.updateCopyDaysState();
             });
-        });
-        
-        // Initialize OCR functionality
-        this.setupOCR();
-        
-        // Shift form
-        document.getElementById('shiftForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveShift();
         });
         
         // Photo upload
@@ -369,6 +353,7 @@ class MyShiftApp {
             });
             
             const shifts = await this.getShiftsForDay(this.currentWeek, dayName);
+            const photos = shifts.length > 0 ? await this.getShiftPhotos(shifts[0].id) : [];
             
             html += `
                 <div class="day-card ${shifts.length > 0 && shifts.some(shift => shift.isDayOff) ? 'day-off-card' : ''}" data-day="${dayName}">
@@ -387,15 +372,16 @@ class MyShiftApp {
                             } else {
                                 return `
                                     <div class="shift-item" data-shift-id="${shift.id}">
-                                        <div class="shift-id">${shift.shiftId}</div>
-                                        <div class="shift-details">
-                                            <span class="shift-time">🕐 ${this.formatTime(shift.signOn)} - ${this.formatTime(shift.finish)}</span>
-                                            <span class="shift-hours">${this.formatHours(shift.totalHours)}</span>
-                                        </div>
+                                        <div class="shift-id-large">${shift.shiftId}</div>
+                                        ${photos.length > 0 ? `
+                                            <div class="shift-photo-thumbnail" onclick="app.openPhotoFullscreen('${photos[0].data}')">
+                                                <img src="${photos[0].data}" alt="Shift photo">
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 `;
                             }
-                        }).join('') : '<div class="no-shifts">No shifts scheduled</div>'}
+                        }).join('') : '<div class="no-shifts">Tap to add shift</div>'}
                     </div>
                 </div>
             `;
@@ -549,136 +535,6 @@ class MyShiftApp {
             request.onerror = () => reject(request.error);
         });
     }
-    
-    // -----------------------------
-// OCR Setup & Auto-Fill Function (Claude AI)
-// -----------------------------
-setupOCR() {
-    const selectBtn = document.getElementById('selectPhotoForOCR');
-    const photoInput = document.getElementById('ocrPhotoInput');
-    const preview = document.getElementById('ocrPreview');
-    const previewImg = document.getElementById('ocrPreviewImg');
-    const processing = document.getElementById('ocrProcessing');
-    const status = document.getElementById('ocrStatus');
-
-    // Test API key loading
-    console.log('Claude API Key loaded:', CLAUDE_API_KEY ? 'YES' : 'NO');
-    console.log('API Key first 3 chars:', CLAUDE_API_KEY.substring(0, 3));
-
-    // 버튼 클릭 → 파일 선택
-    selectBtn.addEventListener('click', () => {
-        // Test: Show API key first 3 characters
-        alert(`API Key loaded: ${CLAUDE_API_KEY.substring(0, 3)}...`);
-        photoInput.click();
-    });
-
-    // 파일 선택 후 처리
-    photoInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // 미리보기 표시
-        const reader = new FileReader();
-        reader.onload = () => {
-            previewImg.src = reader.result;
-            preview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-
-        // 처리 시작 표시
-        processing.style.display = 'flex';
-        status.textContent = 'Processing photo...';
-
-        try {
-            console.log('Starting Claude AI OCR...');
-            console.log('Using API Key:', CLAUDE_API_KEY.substring(0, 10) + '...');
-            
-            // Convert image to base64
-            const base64Image = await this.fileToBase64(file);
-            const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
-            console.log('Base64 image length:', base64Data.length);
-            
-            // Call Claude AI API
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': CLAUDE_API_KEY,
-                    'anthropic-version': '2023-06-01',
-                    'anthropic-dangerous-direct-browser-access': 'true'
-                },
-                body: JSON.stringify({
-                    model: 'claude-3-5-haiku-20241022',
-                    max_tokens: 500,
-                    messages: [{
-                        role: 'user',
-                        content: [{
-                            type: 'image',
-                            source: {
-                                type: 'base64',
-                                media_type: 'image/jpeg',
-                                data: base64Data
-                            }
-                        }, {
-                            type: 'text',
-                            text: 'Extract shift information from this image. Return JSON with: shiftId (string), signOn (HH:MM format), finish (HH:MM format), totalHours (object with hours and minutes). Only return valid JSON, no other text.'
-                        }]
-                    }]
-                })
-            });
-
-            console.log('API Response status:', response.status);
-            console.log('API Response headers:', response.headers);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API Error Response:', errorText);
-                throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText}`);
-            }
-
-            const result = await response.json();
-            console.log('Claude API response:', result);
-
-            // Extract the content from Claude's response
-            const content = result.content[0]?.text;
-            if (!content) {
-                throw new Error('No content in Claude response');
-            }
-
-            // Parse JSON response
-            let shiftData;
-            try {
-                shiftData = JSON.parse(content);
-            } catch (parseError) {
-                console.error('JSON Parse Error:', parseError);
-                console.error('Raw content:', content);
-                throw new Error('Failed to parse Claude response as JSON');
-            }
-
-            console.log('Parsed shift data:', shiftData);
-
-            // Shift 폼에 자동 입력
-            if (shiftData.shiftId) document.getElementById('shiftId').value = shiftData.shiftId;
-            if (shiftData.signOn) document.getElementById('signOnTime').value = shiftData.signOn;
-            if (shiftData.finish) document.getElementById('finishTime').value = shiftData.finish;
-            if (shiftData.totalHours) {
-                const hours = shiftData.totalHours.hours || 0;
-                const minutes = shiftData.totalHours.minutes || 0;
-                document.getElementById('totalHoursHours').value = hours;
-                document.getElementById('totalHoursMinutes').value = minutes;
-            }
-
-            status.textContent = '✅ OCR completed';
-            console.log('Claude AI OCR completed successfully');
-        } catch (err) {
-            console.error('Claude AI OCR Error:', err);
-            status.textContent = '❌ OCR failed: ' + err.message;
-            alert('OCR Error: ' + err.message);
-        } finally {
-            processing.style.display = 'none';
-        }
-    });
-}
     
     // Convert file to base64
     fileToBase64(file) {
