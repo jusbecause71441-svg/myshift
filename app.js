@@ -550,132 +550,101 @@ class MyShiftApp {
         });
     }
     
-    // OCR functionality - extract Shift ID, Sign On, Finish, Total Hours from photo
-    setupOCR() {
-        const selectBtn = document.getElementById('selectPhotoForOCR');
-        const photoInput = document.getElementById('ocrPhotoInput');
-        const preview = document.getElementById('ocrPreview');
-        const previewImg = document.getElementById('ocrPreviewImg');
-        const processing = document.getElementById('ocrProcessing');
-        const status = document.getElementById('ocrStatus');
+    // -----------------------------
+// OCR Setup & Auto-Fill Function
+// -----------------------------
+setupOCR() {
+    const selectBtn = document.getElementById('selectPhotoForOCR');
+    const photoInput = document.getElementById('ocrPhotoInput');
+    const preview = document.getElementById('ocrPreview');
+    const previewImg = document.getElementById('ocrPreviewImg');
+    const processing = document.getElementById('ocrProcessing');
+    const status = document.getElementById('ocrStatus');
 
-        // Show preview helper
-        this.showOCRPreview = (file) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                previewImg.src = reader.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+    // 버튼 클릭 → 파일 선택
+    selectBtn.addEventListener('click', () => {
+        photoInput.click();
+    });
+
+    // 파일 선택 후 처리
+    photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // 미리보기 표시
+        const reader = new FileReader();
+        reader.onload = () => {
+            previewImg.src = reader.result;
+            preview.style.display = 'block';
         };
+        reader.readAsDataURL(file);
 
-        // Parse OCR text to extract Shift ID, Sign On, Finish, Total Hours
-        this.parseOCRText = (text) => {
-            const result = {};
+        // 처리 시작 표시
+        processing.style.display = 'flex';
+        status.textContent = '';
 
-            // Shift ID pattern: e.g., S123 or 123
-            const shiftIdMatch = text.match(/S?\d{3,5}/i);
-            if (shiftIdMatch) result.shiftId = shiftIdMatch[0];
+        try {
+            // OCR 수행 (Tesseract.js)
+            const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+                logger: m => {
+                    // 진행 표시
+                    if (m.status === 'recognizing text') {
+                        status.textContent = `Processing photo... ${Math.round(m.progress * 100)}%`;
+                    }
+                },
+                // Timeout 30초 설정
+                workerPath: 'https://unpkg.com/tesseract.js@4/dist/worker.min.js',
+                corePath: 'https://unpkg.com/tesseract.js-core@2.1.3/tesseract-core.wasm.js'
+            });
 
-            // Time pattern HH:MM (24h) - look for multiple time patterns
-            const timePatterns = [
-                /\b(0[1]?\d|2[0-3]):([0-5]\d)\b/g, // 00:00-23:59
-                /\b(1[0-2]):([0-5]\d)\b/g,           // 10:00-12:59  
-                /\b(1[3-9]):([0-5]\d)\b/g,           // 13:00-23:59
-                /\b(2[0-3]):([0-5]\d)\b/g,           // 20:00-23:59
-                /\b([01]?\d):([0-5]\d)\b/g            // 01:00-09:59 (for times like 08:30)
-            ];
-            
-            let timeMatches = [];
-            for (const pattern of timePatterns) {
-                const matches = [...text.matchAll(pattern)];
-                if (matches.length > 0) {
-                    timeMatches = timeMatches.concat(matches.map(m => `${m[1]}:${m[2]}`));
+            // OCR 텍스트 전처리
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
+            let shiftId = '', signOn = '', finish = '', totalHours = '';
+
+            lines.forEach(line => {
+                // 예시: S123, 08:35, 17:30
+                if (!shiftId && /^S\d+/i.test(line)) shiftId = line.match(/^S\d+/i)[0];
+                if (!signOn && /\b([01]?\d|2[0-3]):[0-5]\d\b/.test(line)) {
+                    const times = line.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/g);
+                    if (times && times.length >= 2) {
+                        signOn = times[0];
+                        finish = times[1];
+                    } else if (times && times.length === 1) {
+                        signOn = times[0];
+                    }
                 }
-            }
-            
-            if (timeMatches.length >= 2) {
-                result.signOn = timeMatches[0];
-                result.finish = timeMatches[1];
-            }
+            });
 
-            // Total Hours pattern: e.g., 7h 30m or 7.5
-            const totalHoursMatch = text.match(/\b(\d{1,2})\s*[hH]\s*(\d{1,2})\s*[mM]?\b/i);
-            if (totalHoursMatch) {
-                const hours = parseInt(totalHoursMatch[1]);
-                const minutes = parseInt(totalHoursMatch[2] || 0);
-                result.totalHours = hours + (minutes / 60);
-            } else {
-                // Try decimal pattern like 7.5
-                const decimalMatch = text.match(/\b(\d+\.?\d*)\b/);
-                if (decimalMatch) {
-                    result.totalHours = parseFloat(decimalMatch[1]);
-                }
+            // Total hours 계산 (finish - signOn)
+            if (signOn && finish) {
+                const [h1, m1] = signOn.split(':').map(Number);
+                const [h2, m2] = finish.split(':').map(Number);
+                const startMinutes = h1 * 60 + m1;
+                const endMinutes = h2 * 60 + m2;
+                const diffMinutes = endMinutes >= startMinutes ? endMinutes - startMinutes : (24*60 - startMinutes + endMinutes);
+                const hours = Math.floor(diffMinutes / 60);
+                const minutes = diffMinutes % 60;
+                totalHours = { hours, minutes };
             }
 
-            return result;
-        };
-
-        // OCR processing
-        this.processOCR = async (file) => {
-            processing.style.display = 'flex';
-            status.textContent = 'Extracting...';
-
-            try {
-                // Add timeout for Tesseract processing
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('OCR processing timeout - please try with a clearer image')), 30000); // 30 seconds
-                });
-
-                const ocrPromise = Tesseract.recognize(file, 'eng', { 
-                    logger: m => console.log('OCR Progress:', m) 
-                });
-
-                const { data: { text } } = await Promise.race([ocrPromise, timeoutPromise]);
-                console.log('OCR Result:', text);
-                
-                const parsed = this.parseOCRText(text);
-                console.log('Parsed:', parsed);
-
-                // Auto-fill fields if recognized
-                if (parsed.shiftId) document.getElementById('shiftId').value = parsed.shiftId;
-                if (parsed.signOn) document.getElementById('signOnTime').value = parsed.signOn;
-                if (parsed.finish) document.getElementById('finishTime').value = parsed.finish;
-                if (parsed.totalHours) {
-                    const hours = Math.floor(parsed.totalHours);
-                    const minutes = Math.round((parsed.totalHours - hours) * 60);
-                    document.getElementById('totalHoursHours').value = hours;
-                    document.getElementById('totalHoursMinutes').value = minutes;
-                }
-
-                status.textContent = 'OCR complete ✅';
-            } catch (err) {
-                console.error('OCR Error:', err);
-                if (err.message.includes('timeout')) {
-                    status.textContent = 'OCR timeout - try clearer image';
-                } else {
-                    status.textContent = 'OCR failed ❌';
-                }
-            } finally {
-                processing.style.display = 'none';
+            // Shift 폼에 자동 입력
+            if (shiftId) document.getElementById('shiftId').value = shiftId;
+            if (signOn) document.getElementById('signOnTime').value = signOn;
+            if (finish) document.getElementById('finishTime').value = finish;
+            if (totalHours) {
+                document.getElementById('totalHoursHours').value = totalHours.hours;
+                document.getElementById('totalHoursMinutes').value = totalHours.minutes;
             }
-        };
 
-        // Handle button click to open file picker
-        selectBtn.addEventListener('click', () => photoInput.click());
-
-        // Handle file selection
-        photoInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            // Show preview
-            this.showOCRPreview(file);
-
-            // Start OCR processing
-            await this.processOCR(file);
-        });
-    }
+            status.textContent = '✅ OCR completed';
+        } catch (err) {
+            console.error(err);
+            status.textContent = '❌ OCR failed';
+        } finally {
+            processing.style.display = 'none';
+        }
+    });
+}
     
     // Convert file to base64
     fileToBase64(file) {
