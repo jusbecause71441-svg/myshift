@@ -118,6 +118,7 @@ class MyShiftApp {
     async init() {
         await this.initDB();
         this.setupEventListeners();
+        this.setupOCR();
         this.renderWeekView();
         
         // Check for week updates every hour
@@ -549,7 +550,7 @@ class MyShiftApp {
         });
     }
     
-        // OCR functionality - completely redesigned
+    // OCR functionality - completely redesigned
     setupOCR() {
         const selectBtn = document.getElementById('selectPhotoForOCR');
         const photoInput = document.getElementById('ocrPhotoInput');
@@ -557,6 +558,7 @@ class MyShiftApp {
         const previewImg = document.getElementById('ocrPreviewImg');
         const processing = document.getElementById('ocrProcessing');
         const status = document.getElementById('ocrStatus');
+        const shiftIdInput = document.getElementById('shiftId');
         
         // Handle button click to open file picker
         selectBtn.addEventListener('click', () => {
@@ -571,8 +573,8 @@ class MyShiftApp {
             // Show preview
             this.showOCRPreview(file);
             
-            // Start OCR processing
-            await this.processOCR(file);
+            // Start Tesseract.js OCR on the selected image
+            await this.processTesseractOCR(file, shiftIdInput, status, processing);
         });
     }
     
@@ -597,174 +599,46 @@ class MyShiftApp {
         reader.readAsDataURL(file);
     }
     
-    // Process OCR using Claude AI
-    async processOCR(file) {
-        const status = document.getElementById('ocrStatus');
-        const processing = document.getElementById('ocrProcessing');
-        const selectBtn = document.getElementById('selectPhotoForOCR');
-        
+    // Process Tesseract.js OCR
+    async processTesseractOCR(file, shiftIdInput, status, processing) {
         try {
-            alert('🔍 Step 1: Starting OCR process');
-            console.log('🔍 Step 1: Starting OCR process');
-            
-            // Check if Claude config is loaded
-            if (typeof CLAUDE_API_KEY === 'undefined') {
-                alert('❌ ERROR: Claude API key not loaded! Check claude-config.js');
-                throw new Error('Claude API key not loaded');
+            // Check if Tesseract is loaded
+            if (typeof Tesseract === 'undefined') {
+                throw new Error('Tesseract.js not loaded. Please check CDN.');
             }
             
-            alert(`🔑 Step 2: API Key loaded: ${CLAUDE_API_KEY ? 'YES' : 'NO'}`);
-            console.log('🔑 Step 2: API Key loaded:', typeof CLAUDE_API_KEY !== 'undefined');
-            
-            // Disable button during processing
-            selectBtn.disabled = true;
-            processing.style.display = 'block';
-            
-            alert('📸 Step 3: Converting image to base64...');
-            console.log('📸 Step 3: Converting image to base64...');
-            
-            // Convert file to base64
-            const base64Image = await this.fileToBase64(file);
-            
-            alert(`📏 Step 4: Image converted to base64 (${base64Image.length} chars)`);
-            console.log('📏 Step 4: Image converted to base64, length:', base64Image.length);
-            
-            // Prepare Claude API request
-            const prompt = `Please extract shift information from this bus driver shift sheet image. Look for:
-1. Shift ID (usually a number like 12345)
-2. Sign On time (in HH:MM format, 24-hour)
-3. Finish time (in HH:MM format, 24-hour)  
-4. Total Hours (in decimal format like 8.5)
-
-Return the data in this exact JSON format:
-{
-  "shiftId": "extracted_shift_id",
-  "signOn": "HH:MM",
-  "finish": "HH:MM", 
-  "totalHours": "decimal_hours"
-}
-
-Only return JSON, no other text.`;
-
-            alert('🤖 Step 5: Sending request to Claude API...');
-            console.log('🤖 Step 5: Sending request to Claude API...');
-            console.log('🌐 API Endpoint:', CLAUDE_API_ENDPOINT);
-            console.log('🔑 Using API Key:', CLAUDE_API_KEY.substring(0, 10) + '...');
-            
-            // Call Claude API
-            const response = await fetch(CLAUDE_API_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': CLAUDE_API_KEY,
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: CLAUDE_MODEL,
-                    max_tokens: CLAUDE_MAX_TOKENS,
-                    messages: [
-                        {
-                            role: 'user',
-                            content: [
-                                {
-                                    type: 'image',
-                                    source: {
-                                        type: 'base64',
-                                        media_type: file.type,
-                                        data: base64Image.split(',')[1] // Remove data:image/...;base64, prefix
-                                    }
-                                },
-                                {
-                                    type: 'text',
-                                    text: prompt
-                                }
-                            ]
-                        }
-                    ]
-                })
+            // Create Tesseract worker
+            const worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => console.log('OCR Progress:', m),
             });
-
-            alert(`📡 Step 6: Response received: ${response.status} ${response.statusText}`);
-            console.log('📡 Step 6: Response received:', response.status, response.statusText);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                alert(`❌ Step 7: API Error: ${errorText}`);
-                throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText}`);
-            }
-
-            const result = await response.json();
-            alert('📋 Step 8: Parsed JSON response');
-            console.log('📋 Step 8: Parsed JSON response:', result);
-
-            if (result.content && result.content[0] && result.content[0].text) {
-                const extractedText = result.content[0].text;
-                
-                alert('🔍 Step 9: Extracted text from Claude');
-                console.log('🔍 Step 9: Extracted text from Claude:', extractedText);
-                
-                // Try to parse JSON from Claude's response
-                let shiftData;
-                try {
-                    // Find JSON in the response
-                    const jsonMatch = extractedText.match(/\{[^}]+\}/);
-                    if (jsonMatch) {
-                        shiftData = JSON.parse(jsonMatch[0]);
-                        alert('✅ Step 10: Successfully parsed JSON');
-                        console.log('✅ Step 10: Successfully parsed JSON:', shiftData);
-                    } else {
-                        alert('⚠️ Step 10: No JSON found in response');
-                        console.log('⚠️ Step 10: No JSON found in response');
-                    }
-                } catch (parseError) {
-                    alert(`❌ Step 10: JSON Parse Error: ${parseError.message}`);
-                    console.error('❌ Step 10: JSON Parse Error:', parseError);
-                }
-
-                if (shiftData) {
-                    alert('📝 Step 11: Populating form with extracted data');
-                    console.log('📝 Step 11: Populating form with extracted data:', shiftData);
-                    
-                    // Populate form with extracted data
-                    this.populateFormWithExtractedData(shiftData);
-                    status.textContent = '✅ Shift info extracted successfully!';
-                    status.className = 'ocr-status success';
-                    alert('🎉 Step 12: OCR Complete!');
-                } else {
-                    alert('⚠️ Step 11: No shift data extracted');
-                    status.textContent = '⚠️ Could not extract shift information from photo';
-                    status.className = 'ocr-status error';
-                }
+            
+            // Perform OCR
+            const { data: { text } } = await worker.recognize(file);
+            console.log('OCR Result:', text);
+            
+            // Extract shift ID using regex /S?\d{3,5}/
+            const shiftIdMatch = text.match(/S?\d{3,5}/);
+            
+            if (shiftIdMatch) {
+                const detectedShiftId = shiftIdMatch[0];
+                shiftIdInput.value = detectedShiftId;
+                status.textContent = `Detected Shift ID: ${detectedShiftId}`;
+                status.className = 'ocr-status success';
             } else {
-                alert('❌ Step 9: No content in Claude response');
-                status.textContent = '⚠️ No response from Claude AI';
+                status.textContent = 'Shift ID not found';
                 status.className = 'ocr-status error';
             }
             
+            // Cleanup
+            await worker.terminate();
+            
         } catch (error) {
-            alert(`❌ FATAL ERROR: ${error.message}`);
-            console.error('❌ FATAL ERROR:', error);
-            console.error('❌ ERROR STACK:', error.stack);
-            
-            let errorMessage = '❌ Error processing photo';
-            
-            if (error.message.includes('API key')) {
-                errorMessage = '❌ Claude API key not configured';
-            } else if (error.message.includes('network')) {
-                errorMessage = '❌ Network error - check internet connection';
-            } else if (error.message.includes('timeout')) {
-                errorMessage = '❌ Request timed out';
-            } else if (error.message) {
-                errorMessage = `❌ ${error.message}`;
-            }
-            
-            status.textContent = errorMessage;
+            console.error('OCR Error:', error);
+            status.textContent = `OCR Error: ${error.message}`;
             status.className = 'ocr-status error';
         } finally {
-            // Hide processing overlay and re-enable button
+            // Hide processing indicator
             processing.style.display = 'none';
-            selectBtn.disabled = false;
-            alert('🔄 Process ended - button re-enabled');
         }
     }
 
