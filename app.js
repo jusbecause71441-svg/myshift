@@ -590,7 +590,7 @@ class MyShiftApp {
         reader.readAsDataURL(file);
     }
     
-    // Process OCR
+    // Process OCR using Claude AI
     async processOCR(file) {
         const status = document.getElementById('ocrStatus');
         const processing = document.getElementById('ocrProcessing');
@@ -599,64 +599,110 @@ class MyShiftApp {
         try {
             // Disable button during processing
             selectBtn.disabled = true;
+            processing.style.display = 'block';
             
-            // Check if Tesseract is loaded
-            if (typeof Tesseract === 'undefined') {
-                throw new Error('Tesseract.js not loaded from CDN');
-            }
+            console.log('Starting Claude AI OCR processing...');
             
-            console.log('Starting OCR processing...');
+            // Convert file to base64
+            const base64Image = await this.fileToBase64(file);
             
-            // Optimize image for faster processing
-            const optimizedFile = await this.optimizeImageForOCR(file);
-            
-            // Create Tesseract worker with faster settings
-            const worker = await Tesseract.createWorker('eng', 1, {
-                logger: m => console.log('OCR Progress:', m),
+            // Prepare Claude API request
+            const prompt = `Please extract shift information from this bus driver shift sheet image. Look for:
+1. Shift ID (usually a number like 12345)
+2. Sign On time (in HH:MM format, 24-hour)
+3. Finish time (in HH:MM format, 24-hour)  
+4. Total Hours (in decimal format like 8.5)
+
+Return the data in this exact JSON format:
+{
+  "shiftId": "extracted_shift_id",
+  "signOn": "HH:MM",
+  "finish": "HH:MM", 
+  "totalHours": "decimal_hours"
+}
+
+Only return the JSON, no other text.`;
+
+            // Call Claude API
+            const response = await fetch(CLAUDE_API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: CLAUDE_MODEL,
+                    max_tokens: CLAUDE_MAX_TOKENS,
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'image',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: file.type,
+                                        data: base64Image.split(',')[1] // Remove data:image/...;base64, prefix
+                                    }
+                                },
+                                {
+                                    type: 'text',
+                                    text: prompt
+                                }
+                            ]
+                        }
+                    ]
+                })
             });
-            
-            console.log('Tesseract worker created, recognizing text...');
-            
-            // Perform OCR on optimized image
-            const { data: { text } } = await worker.recognize(optimizedFile);
-            
-            console.log('OCR Result:', text);
-            
-            // Extract all shift information
-            const extractedData = this.parseConnecteamShiftSheet(text);
-            
-            if (extractedData && extractedData.multipleShifts && extractedData.multipleShifts.length > 1) {
-                // Show shift selection popup
-                this.showShiftSelectionPopup(extractedData.multipleShifts);
-                status.textContent = '📋 Multiple shifts found - please select yours';
-                status.className = 'ocr-status processing';
-            } else if (extractedData && extractedData.shiftData) {
-                // Single shift found, populate form
-                this.populateFormWithExtractedData(extractedData.shiftData);
-                status.textContent = '✅ Shift info extracted successfully!';
-                status.className = 'ocr-status success';
+
+            if (!response.ok) {
+                throw new Error(`Claude API error: ${response.status} ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('Claude API Response:', result);
+
+            if (result.content && result.content[0] && result.content[0].text) {
+                const extractedText = result.content[0].text;
+                
+                // Try to parse JSON from Claude's response
+                let shiftData;
+                try {
+                    // Find JSON in the response
+                    const jsonMatch = extractedText.match(/\{[^}]+\}/);
+                    if (jsonMatch) {
+                        shiftData = JSON.parse(jsonMatch[0]);
+                    }
+                } catch (parseError) {
+                    console.error('Failed to parse Claude response:', parseError);
+                }
+
+                if (shiftData) {
+                    // Populate form with extracted data
+                    this.populateFormWithExtractedData(shiftData);
+                    status.textContent = '✅ Shift info extracted successfully!';
+                    status.className = 'ocr-status success';
+                } else {
+                    status.textContent = '⚠️ Could not extract shift information from photo';
+                    status.className = 'ocr-status error';
+                }
             } else {
-                // Show no data found
-                status.textContent = '⚠️ No shift information found in photo';
+                status.textContent = '⚠️ No response from Claude AI';
                 status.className = 'ocr-status error';
             }
             
-            // Cleanup
-            await worker.terminate();
-            
         } catch (error) {
-            console.error('OCR Error Details:', error);
-            console.error('Error Stack:', error.stack);
+            console.error('Claude OCR Error:', error);
             
-            // Show detailed error
             let errorMessage = '❌ Error processing photo';
             
-            if (error.message.includes('Tesseract')) {
-                errorMessage = '❌ OCR library not loaded properly';
+            if (error.message.includes('API key')) {
+                errorMessage = '❌ Claude API key not configured';
             } else if (error.message.includes('network')) {
-                errorMessage = '❌ Network error loading OCR';
+                errorMessage = '❌ Network error - check internet connection';
             } else if (error.message.includes('timeout')) {
-                errorMessage = '❌ OCR processing timed out';
+                errorMessage = '❌ Request timed out';
             } else if (error.message) {
                 errorMessage = `❌ ${error.message}`;
             }
@@ -664,12 +710,20 @@ class MyShiftApp {
             status.textContent = errorMessage;
             status.className = 'ocr-status error';
         } finally {
-            // Hide processing overlay
+            // Hide processing overlay and re-enable button
             processing.style.display = 'none';
-            
-            // Re-enable button
             selectBtn.disabled = false;
         }
+    }
+
+    // Convert file to base64
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+        });
     }
     
     // Optimize image for faster OCR processing
