@@ -439,14 +439,25 @@ class MyShiftApp {
     
     // Open edit shift modal
     async openEditShiftModal() {
-        if (!this.currentShift) return;
+        if (!this.currentShift) {
+            console.error('No current shift to edit');
+            return;
+        }
         
         this.editingShift = this.currentShift;
         document.getElementById('addModalTitle').textContent = 'Edit Shift';
         
         // Populate form with current shift data
         document.getElementById('shiftDay').value = this.currentShift.day;
-        document.getElementById('shiftId').value = this.currentShift.shiftId;
+        
+        // Set shift ID value with proper check
+        const shiftIdInput = document.getElementById('shiftId');
+        if (shiftIdInput) {
+            shiftIdInput.value = this.currentShift.shiftId;
+            console.log('Set shift ID to:', this.currentShift.shiftId);
+        } else {
+            console.error('Shift ID input not found!');
+        }
         
         // Set day off checkbox
         document.getElementById('isDayOff').checked = this.currentShift.isDayOff;
@@ -556,9 +567,10 @@ class MyShiftApp {
         
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
-        const shiftId = document.getElementById('shiftId').value.trim();
+        const shiftIdInput = document.getElementById('shiftId');
+        const shiftId = shiftIdInput ? shiftIdInput.value.trim() : '';
         
-        console.log('Shift data:', { isDayOff, selectedDay, shiftId });
+        console.log('Shift data:', { isDayOff, selectedDay, shiftId, shiftIdInput });
         
         // Validate required fields
         if (!selectedDay || (!isDayOff && !shiftId)) {
@@ -663,7 +675,10 @@ class MyShiftApp {
     
     // Delete shift
     async deleteShift() {
-        if (!this.currentShift) return;
+        if (!this.currentShift) {
+            console.error('No current shift to delete');
+            return;
+        }
         
         if (!confirm(`Are you sure you want to delete shift ${this.currentShift.shiftId}?`)) {
             return;
@@ -672,16 +687,21 @@ class MyShiftApp {
         try {
             console.log('Deleting shift:', this.currentShift.id, 'from day:', this.currentShift.day);
             
-            // Delete shift
+            // Delete shift from database
             await this.deleteShiftFromDB(this.currentShift.id);
             
             // Delete associated photos
             const photos = await this.getShiftPhotos(this.currentShift.id);
+            console.log('Found photos to delete:', photos.length);
             for (const photo of photos) {
                 await this.deletePhotoFromDB(photo.id);
+                console.log('Deleted photo:', photo.id);
             }
             
-            console.log('Shift deleted successfully from day:', this.currentShift.day);
+            console.log('Shift and photos deleted successfully from day:', this.currentShift.day);
+            
+            // Clear current shift
+            this.currentShift = null;
             
             // Close modal and refresh
             this.closeModal('shiftModal');
