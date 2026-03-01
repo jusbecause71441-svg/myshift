@@ -450,6 +450,8 @@ class MyShiftApp {
                 <button class="photo-delete" onclick="event.stopPropagation(); app.deletePhoto(${photo.id})">×</button>
             </div>
         `).join('');
+        
+        console.log(`Loaded ${photos.length} photos for shift ${shiftId}`);
     }
     
     // Get photos for a shift
@@ -521,18 +523,26 @@ class MyShiftApp {
             // Save to selected days
             for (const day of selectedDays) {
                 const dayShiftData = { ...shiftData, day };
-                if (this.editingShift) {
-                    await this.updateShift(this.editingShift.id, dayShiftData);
+                
+                // Check if shift already exists for this day
+                const existingShifts = await this.getShiftsForDay(this.currentWeek, day);
+                if (existingShifts.length > 0) {
+                    // Update existing shift
+                    await this.updateShift(existingShifts[0].id, dayShiftData);
                 } else {
+                    // Add new shift
                     await this.addShift(dayShiftData);
                 }
             }
             
             // If no copy days selected, just save to the original day
             if (selectedDays.length === 0) {
-                if (this.editingShift) {
-                    await this.updateShift(this.editingShift.id, shiftData);
+                const existingShifts = await this.getShiftsForDay(this.currentWeek, selectedDay);
+                if (existingShifts.length > 0) {
+                    // Update existing shift
+                    await this.updateShift(existingShifts[0].id, shiftData);
                 } else {
+                    // Add new shift
                     await this.addShift(shiftData);
                 }
             }
@@ -578,6 +588,8 @@ class MyShiftApp {
         }
         
         try {
+            console.log('Deleting shift:', this.currentShift.id);
+            
             // Delete shift
             await this.deleteShiftFromDB(this.currentShift.id);
             
@@ -587,6 +599,9 @@ class MyShiftApp {
                 await this.deletePhotoFromDB(photo.id);
             }
             
+            console.log('Shift deleted successfully');
+            
+            // Close modal and refresh
             this.closeModal('shiftModal');
             this.renderWeekView();
         } catch (error) {
@@ -609,15 +624,43 @@ class MyShiftApp {
     
     // Handle photo upload
     async handlePhotoUpload(files) {
-        if (!this.currentShift) return;
+        // Get the current shift ID from the form
+        const shiftId = document.getElementById('shiftId').value;
+        const selectedDay = document.getElementById('shiftDay').value;
+        
+        // Find or create shift for this day
+        let currentShift = null;
+        const existingShifts = await this.getShiftsForDay(this.currentWeek, selectedDay);
+        
+        if (existingShifts.length > 0) {
+            currentShift = existingShifts[0];
+        } else {
+            // Create a temporary shift for photo upload
+            const tempShiftData = {
+                week: this.currentWeek,
+                day: selectedDay,
+                isDayOff: false,
+                shiftId: shiftId || 'TEMP_SHIFT'
+            };
+            const newShiftId = await this.addShift(tempShiftData);
+            currentShift = { ...tempShiftData, id: newShiftId };
+        }
         
         for (const file of files) {
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
-                        await this.savePhoto(this.currentShift.id, e.target.result, file.name);
-                        await this.loadShiftPhotos(this.currentShift.id);
+                        await this.savePhoto(currentShift.id, e.target.result, file.name);
+                        console.log('Photo saved successfully for shift:', currentShift.id);
+                        
+                        // If we're in a shift details modal, refresh the photos
+                        if (this.currentShift && this.currentShift.id === currentShift.id) {
+                            await this.loadShiftPhotos(currentShift.id);
+                        }
+                        
+                        // Refresh the week view to show thumbnail
+                        this.renderWeekView();
                     } catch (error) {
                         console.error('Error saving photo:', error);
                     }
@@ -649,13 +692,25 @@ class MyShiftApp {
     
     // Delete photo
     async deletePhoto(photoId) {
+        if (!confirm('Are you sure you want to delete this photo?')) {
+            return;
+        }
+        
         try {
+            console.log('Deleting photo:', photoId);
             await this.deletePhotoFromDB(photoId);
+            
+            // Refresh photos if we're in a shift details modal
             if (this.currentShift) {
                 await this.loadShiftPhotos(this.currentShift.id);
+                // Also refresh week view to update thumbnails
+                this.renderWeekView();
             }
+            
+            console.log('Photo deleted successfully');
         } catch (error) {
             console.error('Error deleting photo:', error);
+            alert('Error deleting photo. Please try again.');
         }
     }
     
