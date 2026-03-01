@@ -502,6 +502,37 @@ body {
     transform: translateY(-2px);
 }
 
+/* Copy Days Container */
+.copy-days-container {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.copy-day-btn {
+    background: #f1f5f9;
+    border: 2px solid #e2e8f0;
+    color: #64748b;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 40px;
+}
+
+.copy-day-btn:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
+
+.copy-day-btn.selected {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
 /* Form Actions */
 .form-actions {
     display: flex;

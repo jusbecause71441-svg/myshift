@@ -155,6 +155,15 @@ class MyShiftApp {
             }
         });
         
+        // Copy days functionality
+        document.querySelectorAll('.copy-day-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                button.classList.toggle('selected');
+                this.updateCopyDaysState();
+            });
+        });
+        
         // Photo upload
         document.getElementById('uploadBtn').addEventListener('click', () => {
             const photoInput = document.getElementById('photoInput');
@@ -191,6 +200,13 @@ class MyShiftApp {
                 }
             });
         });
+    }
+    
+    // Update copy days state
+    updateCopyDaysState() {
+        const selectedButtons = document.querySelectorAll('.copy-day-btn.selected');
+        const selectedDays = Array.from(selectedButtons).map(btn => btn.dataset.day);
+        console.log('Selected days for copy:', selectedDays);
     }
     
     // Week selection
@@ -398,9 +414,6 @@ class MyShiftApp {
         
         // Populate modal with shift data
         document.getElementById('modalShiftId').textContent = shift.shiftId;
-        document.getElementById('modalSignOn').textContent = this.formatTime(shift.signOn);
-        document.getElementById('modalFinish').textContent = this.formatTime(shift.finish);
-        document.getElementById('modalTotalHours').textContent = this.formatHours(shift.totalHours);
         
         // Load photos
         await this.loadShiftPhotos(shiftId);
@@ -463,6 +476,11 @@ class MyShiftApp {
         const event = new Event('change');
         document.getElementById('isDayOff').dispatchEvent(event);
         
+        // Reset copy days selection
+        document.querySelectorAll('.copy-day-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
         if (day) {
             document.getElementById('shiftDay').value = day;
         }
@@ -474,6 +492,11 @@ class MyShiftApp {
     async saveShift() {
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
+        const shiftId = document.getElementById('shiftId').value;
+        
+        // Get selected copy days
+        const selectedButtons = document.querySelectorAll('.copy-day-btn.selected');
+        const selectedDays = Array.from(selectedButtons).map(btn => btn.dataset.day);
         
         // Create shift data
         let shiftData;
@@ -483,31 +506,35 @@ class MyShiftApp {
                 week: this.currentWeek,
                 day: selectedDay,
                 isDayOff: true,
-                shiftId: 'DAY OFF',
-                signOn: '00:00',
-                finish: '00:00',
-                totalHours: { hours: 0, minutes: 0 }
+                shiftId: 'DAY OFF'
             };
         } else {
-            const hours = parseInt(document.getElementById('totalHoursHours').value);
-            const minutes = parseInt(document.getElementById('totalHoursMinutes').value);
-            
             shiftData = {
                 week: this.currentWeek,
                 day: selectedDay,
                 isDayOff: false,
-                shiftId: document.getElementById('shiftId').value,
-                signOn: document.getElementById('signOnTime').value,
-                finish: document.getElementById('finishTime').value,
-                totalHours: { hours, minutes }
+                shiftId: shiftId
             };
         }
         
         try {
-            if (this.editingShift) {
-                await this.updateShift(this.editingShift.id, shiftData);
-            } else {
-                await this.addShift(shiftData);
+            // Save to selected days
+            for (const day of selectedDays) {
+                const dayShiftData = { ...shiftData, day };
+                if (this.editingShift) {
+                    await this.updateShift(this.editingShift.id, dayShiftData);
+                } else {
+                    await this.addShift(dayShiftData);
+                }
+            }
+            
+            // If no copy days selected, just save to the original day
+            if (selectedDays.length === 0) {
+                if (this.editingShift) {
+                    await this.updateShift(this.editingShift.id, shiftData);
+                } else {
+                    await this.addShift(shiftData);
+                }
             }
             
             this.closeModal('addShiftModal');

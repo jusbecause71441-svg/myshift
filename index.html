@@ -50,18 +50,6 @@ if ("serviceWorker" in navigator) {
                         <strong>Shift ID:</strong>
                         <span id="modalShiftId"></span>
                     </div>
-                    <div class="info-row">
-                        <strong>Sign On:</strong>
-                        <span id="modalSignOn"></span>
-                    </div>
-                    <div class="info-row">
-                        <strong>Finish:</strong>
-                        <span id="modalFinish"></span>
-                    </div>
-                    <div class="info-row">
-                        <strong>Total Hours:</strong>
-                        <span id="modalTotalHours"></span>
-                    </div>
                 </div>
                 <div class="photo-gallery" id="photoGallery">
                     <!-- Photos will be loaded here -->
@@ -108,23 +96,17 @@ if ("serviceWorker" in navigator) {
                             <input type="text" id="shiftId" required placeholder="e.g., S123">
                         </div>
                         
+                        <!-- Copy to other days -->
                         <div class="form-group">
-                            <label for="signOnTime">Sign On Time (24-hour format, e.g., 08:35 or 20:35):</label>
-                            <input type="time" id="signOnTime" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="finishTime">Finish Time (24-hour format, e.g., 17:30 or 23:45):</label>
-                            <input type="time" id="finishTime" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="totalHours">Total Hours:</label>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="number" id="totalHoursHours" min="0" max="23" required placeholder="Hours" style="flex: 1;">
-                                <span style="color: #666666;">h</span>
-                                <input type="number" id="totalHoursMinutes" min="0" max="59" required placeholder="Minutes" style="flex: 1;">
-                                <span style="color: #666666;">m</span>
+                            <label>Copy to other days:</label>
+                            <div class="copy-days-container">
+                                <button type="button" class="copy-day-btn" data-day="sunday">Sun</button>
+                                <button type="button" class="copy-day-btn" data-day="monday">Mon</button>
+                                <button type="button" class="copy-day-btn" data-day="tuesday">Tue</button>
+                                <button type="button" class="copy-day-btn" data-day="wednesday">Wed</button>
+                                <button type="button" class="copy-day-btn" data-day="thursday">Thu</button>
+                                <button type="button" class="copy-day-btn" data-day="friday">Fri</button>
+                                <button type="button" class="copy-day-btn" data-day="saturday">Sat</button>
                             </div>
                         </div>
                         
