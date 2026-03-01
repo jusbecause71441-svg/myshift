@@ -187,6 +187,11 @@ class MyShiftApp {
             this.saveShift();
         });
         
+        // Edit shift button
+        document.getElementById('editShiftBtn').addEventListener('click', () => {
+            this.openEditShiftModal();
+        });
+        
         // Photo fullscreen close
         document.getElementById('closePhotoFullscreen').addEventListener('click', () => {
             this.closeModal('photoFullscreenModal');
@@ -307,8 +312,7 @@ class MyShiftApp {
             html += `
                 <div class="${dayCardClass}" data-day="${dayName}">
                     <div class="day-header">
-                        <span class="day-name">${dayName.charAt(0).toUpperCase() + dayName.slice(1)}</span>
-                        <span class="day-date">${dayDate}</span>
+                        <span class="day-name">${dayDate} (${dayName.charAt(0).toUpperCase() + dayName.slice(1)})</span>
                     </div>
                     <div class="shifts-container">
                         ${shifts.length > 0 ? shifts.map(shift => {
@@ -422,6 +426,32 @@ class MyShiftApp {
         
         // Show modal
         this.openModal('shiftModal');
+    }
+    
+    // Open edit shift modal
+    async openEditShiftModal() {
+        if (!this.currentShift) return;
+        
+        this.editingShift = this.currentShift;
+        document.getElementById('addModalTitle').textContent = 'Edit Shift';
+        
+        // Populate form with current shift data
+        document.getElementById('shiftDay').value = this.currentShift.day;
+        document.getElementById('shiftId').value = this.currentShift.shiftId;
+        
+        // Set day off checkbox
+        document.getElementById('isDayOff').checked = this.currentShift.isDayOff;
+        const event = new Event('change');
+        document.getElementById('isDayOff').dispatchEvent(event);
+        
+        // Reset copy days selection
+        document.querySelectorAll('.copy-day-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        // Close details modal and open edit modal
+        this.closeModal('shiftModal');
+        this.openModal('addShiftModal');
     }
     
     // Get single shift
@@ -549,7 +579,9 @@ class MyShiftApp {
                 }
             }
             
+            // Close modal and refresh
             this.closeModal('addShiftModal');
+            this.closeModal('shiftModal'); // Also close shift details if open
             this.renderWeekView();
         } catch (error) {
             console.error('Error saving shift:', error);
@@ -590,7 +622,7 @@ class MyShiftApp {
         }
         
         try {
-            console.log('Deleting shift:', this.currentShift.id);
+            console.log('Deleting shift:', this.currentShift.id, 'from day:', this.currentShift.day);
             
             // Delete shift
             await this.deleteShiftFromDB(this.currentShift.id);
@@ -601,7 +633,7 @@ class MyShiftApp {
                 await this.deletePhotoFromDB(photo.id);
             }
             
-            console.log('Shift deleted successfully');
+            console.log('Shift deleted successfully from day:', this.currentShift.day);
             
             // Close modal and refresh
             this.closeModal('shiftModal');
