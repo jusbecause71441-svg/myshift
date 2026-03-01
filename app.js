@@ -550,7 +550,7 @@ class MyShiftApp {
         });
     }
     
-    // OCR functionality - completely redesigned
+    // OCR functionality - extract Shift ID, Sign On, Finish, Total Hours from photo
     setupOCR() {
         const selectBtn = document.getElementById('selectPhotoForOCR');
         const photoInput = document.getElementById('ocrPhotoInput');
@@ -558,90 +558,125 @@ class MyShiftApp {
         const previewImg = document.getElementById('ocrPreviewImg');
         const processing = document.getElementById('ocrProcessing');
         const status = document.getElementById('ocrStatus');
-        const shiftIdInput = document.getElementById('shiftId');
-        
+
+        // Show preview helper
+        this.showOCRPreview = (file) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                previewImg.src = reader.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Parse OCR text to extract Shift ID, Sign On, Finish, Total Hours
+        this.parseOCRText = (text) => {
+            const result = {};
+
+            // Shift ID pattern: e.g., S123 or 123
+            const shiftIdMatch = text.match(/S?\d{3,5}/i);
+            if (shiftIdMatch) result.shiftId = shiftIdMatch[0];
+
+            // Time pattern HH:MM (24h) - look for multiple time patterns
+            const timePatterns = [
+                /\b(0[1]?\d|2[0-3]):([0-5]\d)\b/g, // 00:00-23:59
+                /\b(1[0-2]):([0-5]\d)\b/g,           // 10:00-12:59  
+                /\b(1[3-9]):([0-5]\d)\b/g,           // 13:00-23:59
+                /\b(2[0-3]):([0-5]\d)\b/g,           // 20:00-23:59
+                /\b([01]?\d):([0-5]\d)\b/g            // 01:00-09:59 (for times like 08:30)
+            ];
+            
+            let timeMatches = [];
+            for (const pattern of timePatterns) {
+                const matches = [...text.matchAll(pattern)];
+                if (matches.length > 0) {
+                    timeMatches = timeMatches.concat(matches.map(m => `${m[1]}:${m[2]}`));
+                }
+            }
+            
+            if (timeMatches.length >= 2) {
+                result.signOn = timeMatches[0];
+                result.finish = timeMatches[1];
+            }
+
+            // Total Hours pattern: e.g., 7h 30m or 7.5
+            const totalHoursMatch = text.match(/\b(\d{1,2})\s*[hH]\s*(\d{1,2})\s*[mM]?\b/i);
+            if (totalHoursMatch) {
+                const hours = parseInt(totalHoursMatch[1]);
+                const minutes = parseInt(totalHoursMatch[2] || 0);
+                result.totalHours = hours + (minutes / 60);
+            } else {
+                // Try decimal pattern like 7.5
+                const decimalMatch = text.match(/\b(\d+\.?\d*)\b/);
+                if (decimalMatch) {
+                    result.totalHours = parseFloat(decimalMatch[1]);
+                }
+            }
+
+            return result;
+        };
+
+        // OCR processing
+        this.processOCR = async (file) => {
+            processing.style.display = 'flex';
+            status.textContent = 'Extracting...';
+
+            try {
+                // Add timeout for Tesseract processing
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('OCR processing timeout - please try with a clearer image')), 30000); // 30 seconds
+                });
+
+                const ocrPromise = Tesseract.recognize(file, 'eng', { 
+                    logger: m => console.log('OCR Progress:', m) 
+                });
+
+                const { data: { text } } = await Promise.race([ocrPromise, timeoutPromise]);
+                console.log('OCR Result:', text);
+                
+                const parsed = this.parseOCRText(text);
+                console.log('Parsed:', parsed);
+
+                // Auto-fill fields if recognized
+                if (parsed.shiftId) document.getElementById('shiftId').value = parsed.shiftId;
+                if (parsed.signOn) document.getElementById('signOnTime').value = parsed.signOn;
+                if (parsed.finish) document.getElementById('finishTime').value = parsed.finish;
+                if (parsed.totalHours) {
+                    const hours = Math.floor(parsed.totalHours);
+                    const minutes = Math.round((parsed.totalHours - hours) * 60);
+                    document.getElementById('totalHoursHours').value = hours;
+                    document.getElementById('totalHoursMinutes').value = minutes;
+                }
+
+                status.textContent = 'OCR complete ✅';
+            } catch (err) {
+                console.error('OCR Error:', err);
+                if (err.message.includes('timeout')) {
+                    status.textContent = 'OCR timeout - try clearer image';
+                } else {
+                    status.textContent = 'OCR failed ❌';
+                }
+            } finally {
+                processing.style.display = 'none';
+            }
+        };
+
         // Handle button click to open file picker
-        selectBtn.addEventListener('click', () => {
-            photoInput.click();
-        });
-        
+        selectBtn.addEventListener('click', () => photoInput.click());
+
         // Handle file selection
         photoInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            
+
             // Show preview
             this.showOCRPreview(file);
-            
-            // Start Tesseract.js OCR on the selected image
-            await this.processTesseractOCR(file, shiftIdInput, status, processing);
+
+            // Start OCR processing
+            await this.processOCR(file);
         });
     }
     
-    // Show OCR preview
-    showOCRPreview(file) {
-        const preview = document.getElementById('ocrPreview');
-        const previewImg = document.getElementById('ocrPreviewImg');
-        const processing = document.getElementById('ocrProcessing');
-        const status = document.getElementById('ocrStatus');
-        
-        // Show preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            previewImg.src = e.target.result;
-            preview.style.display = 'block';
-            processing.style.display = 'flex';
-            
-            // Update status
-            status.textContent = 'Processing photo...';
-            status.className = 'ocr-status processing';
-        };
-        reader.readAsDataURL(file);
-    }
-    
-    // Process Tesseract.js OCR
-    async processTesseractOCR(file, shiftIdInput, status, processing) {
-        try {
-            // Check if Tesseract is loaded
-            if (typeof Tesseract === 'undefined') {
-                throw new Error('Tesseract.js not loaded. Please check CDN.');
-            }
-            
-            // Create Tesseract worker
-            const worker = await Tesseract.createWorker('eng', 1, {
-                logger: m => console.log('OCR Progress:', m),
-            });
-            
-            // Perform OCR
-            const { data: { text } } = await worker.recognize(file);
-            console.log('OCR Result:', text);
-            
-            // Extract shift ID using regex /S?\d{3,5}/
-            const shiftIdMatch = text.match(/S?\d{3,5}/);
-            
-            if (shiftIdMatch) {
-                const detectedShiftId = shiftIdMatch[0];
-                shiftIdInput.value = detectedShiftId;
-                status.textContent = `Detected Shift ID: ${detectedShiftId}`;
-                status.className = 'ocr-status success';
-            } else {
-                status.textContent = 'Shift ID not found';
-                status.className = 'ocr-status error';
-            }
-            
-            // Cleanup
-            await worker.terminate();
-            
-        } catch (error) {
-            console.error('OCR Error:', error);
-            status.textContent = `OCR Error: ${error.message}`;
-            status.className = 'ocr-status error';
-        } finally {
-            // Hide processing indicator
-            processing.style.display = 'none';
-        }
-    }
-
     // Convert file to base64
     fileToBase64(file) {
         return new Promise((resolve, reject) => {
@@ -651,246 +686,7 @@ class MyShiftApp {
             reader.readAsDataURL(file);
         });
     }
-    
-    // Optimize image for faster OCR processing
-    async optimizeImageForOCR(file) {
-        return new Promise((resolve) => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            
-            img.onload = () => {
-                // Calculate new dimensions (max 1000px width)
-                const maxWidth = 1000;
-                let width = img.width;
-                let height = img.height;
-                
-                if (width > maxWidth) {
-                    height = (maxWidth / width) * height;
-                    width = maxWidth;
-                }
-                
-                // Set canvas dimensions
-                canvas.width = width;
-                canvas.height = height;
-                
-                // Draw and optimize image
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                // Convert to blob
-                canvas.toBlob((blob) => {
-                    resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-                }, 'image/jpeg', 0.8);
-            };
-            
-            img.src = URL.createObjectURL(file);
-        });
-    }
-    
-    // Show shift selection popup
-    showShiftSelectionPopup(shifts) {
-        // Create popup HTML
-        const popupHtml = `
-            <div class="shift-selection-popup" id="shiftSelectionPopup">
-                <div class="shift-selection-content">
-                    <h3>Which shift is yours?</h3>
-                    <p>We found multiple shifts in the image:</p>
-                    <div class="shift-options">
-                        ${shifts.map(shift => `
-                            <button class="shift-option-btn" data-shift='${JSON.stringify(shift)}'>
-                                <strong>SHIFT ${shift.shiftId}</strong><br>
-                                <small>Sign On: ${shift.signOn} | Finish: ${shift.finish} | Hours: ${shift.totalHours}h ${shift.totalMinutes}m</small>
-                            </button>
-                        `).join('')}
-                    </div>
-                    <button class="shift-selection-cancel" id="cancelShiftSelection">Cancel</button>
-                </div>
-            </div>
-        `;
-        
-        // Add popup to body
-        document.body.insertAdjacentHTML('beforeend', popupHtml);
-        
-        // Add event listeners
-        document.querySelectorAll('.shift-option-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const shiftData = JSON.parse(e.target.dataset.shift);
-                this.populateFormWithExtractedData(shiftData);
-                this.closeShiftSelectionPopup();
-                
-                // Update status
-                const status = document.getElementById('ocrStatus');
-                status.textContent = '✅ Shift info extracted successfully!';
-                status.className = 'ocr-status success';
-            });
-        });
-        
-        document.getElementById('cancelShiftSelection').addEventListener('click', () => {
-            this.closeShiftSelectionPopup();
-            
-            // Update status
-            const status = document.getElementById('ocrStatus');
-            status.textContent = '⚠️ Shift selection cancelled';
-            status.className = 'ocr-status error';
-        });
-    }
-    
-    // Close shift selection popup
-    closeShiftSelectionPopup() {
-        const popup = document.getElementById('shiftSelectionPopup');
-        if (popup) {
-            popup.remove();
-        }
-    }
-    
-    // Parse Connecteam shift sheet specifically
-    parseConnecteamShiftSheet(ocrText) {
-        const text = ocrText;
-        console.log('Parsing Connecteam shift sheet:', text);
-        
-        // Find all shifts in the text
-        const allShifts = this.extractAllShifts(text);
-        
-        if (allShifts.length === 0) {
-            return null; // No shifts found
-        } else if (allShifts.length === 1) {
-            // Single shift found
-            return {
-                shiftData: allShifts[0],
-                multipleShifts: null
-            };
-        } else {
-            // Multiple shifts found
-            return {
-                shiftData: null,
-                multipleShifts: allShifts
-            };
-        }
-    }
-    
-    // Extract all shifts from OCR text
-    extractAllShifts(text) {
-        const shifts = [];
-        
-        // Find all shift IDs and their associated data
-        const shiftIdPattern = /SHIFT\s*([0-9]{4,5})/gi;
-        const shiftMatches = [...text.matchAll(shiftIdPattern)];
-        
-        for (const shiftMatch of shiftMatches) {
-            const shiftId = shiftMatch[1];
-            const shiftStart = shiftMatch.index;
-            
-            // Extract data for this specific shift
-            const shiftData = this.extractShiftData(text, shiftId, shiftStart);
-            if (shiftData) {
-                shifts.push(shiftData);
-            }
-        }
-        
-        // If no SHIFT patterns found, try alternative patterns
-        if (shifts.length === 0) {
-            const altPatterns = [
-                /Shift\s*([0-9]{4,5})/gi,
-                /([0-9]{4,5})/gi
-            ];
-            
-            for (const pattern of altPatterns) {
-                const matches = [...text.matchAll(pattern)];
-                for (const match of matches) {
-                    const shiftId = match[1];
-                    if (!shifts.find(s => s.shiftId === shiftId)) {
-                        const shiftData = this.extractShiftData(text, shiftId, match.index);
-                        if (shiftData) {
-                            shifts.push(shiftData);
-                        }
-                    }
-                }
-            }
-        }
-        
-        console.log('Found shifts:', shifts);
-        return shifts;
-    }
-    
-    // Extract data for a specific shift
-    extractShiftData(text, shiftId, startIndex) {
-        // Look for associated times near this shift ID
-        const contextStart = Math.max(0, startIndex - 100);
-        const contextEnd = Math.min(text.length, startIndex + 200);
-        const context = text.substring(contextStart, contextEnd);
-        
-        const patterns = {
-            signOn: [
-                /Sign\s*On\s*([0-9]{4})/i,
-                /Sign\s*on\s*([0-9]{4})/i,
-                /SIGN\s*ON\s*([0-9]{4})/i
-            ],
-            finish: [
-                /Depot\s*Finish\s*([0-9]{4})/i,
-                /Depot\s*finish\s*([0-9]{4})/i,
-                /DEPOT\s*FINISH\s*([0-9]{4})/i
-            ],
-            totalHours: [
-                /Total\s*Hours\s*([0-9]+(?:\.[0-9]+)?)/i,
-                /Total\s*hours\s*([0-9]+(?:\.[0-9]+)?)/i,
-                /TOTAL\s*HOURS\s*([0-9]+(?:\.[0-9]+)?)/i
-            ]
-        };
-        
-        const extracted = { shiftId };
-        
-        // Extract Sign On time
-        for (const pattern of patterns.signOn) {
-            const match = context.match(pattern);
-            if (match) {
-                const timeStr = match[1];
-                if (timeStr.length === 4) {
-                    extracted.signOn = `${timeStr.substring(0, 2)}:${timeStr.substring(2)}`;
-                } else {
-                    extracted.signOn = timeStr;
-                }
-                break;
-            }
-        }
-        
-        // Extract Finish time
-        for (const pattern of patterns.finish) {
-            const match = context.match(pattern);
-            if (match) {
-                const timeStr = match[1];
-                if (timeStr.length === 4) {
-                    extracted.finish = `${timeStr.substring(0, 2)}:${timeStr.substring(2)}`;
-                } else {
-                    extracted.finish = timeStr;
-                }
-                break;
-            }
-        }
-        
-        // Extract Total Hours
-        for (const pattern of patterns.totalHours) {
-            const match = context.match(pattern);
-            if (match) {
-                const hoursStr = match[1];
-                if (hoursStr.includes('.')) {
-                    const [hours, minutes] = hoursStr.split('.');
-                    extracted.totalHours = parseInt(hours);
-                    extracted.totalMinutes = Math.round((parseFloat(minutes) * 60) / 100);
-                } else {
-                    extracted.totalHours = parseInt(hoursStr);
-                    extracted.totalMinutes = 0;
-                }
-                break;
-            }
-        }
-        
-        // Only return if we found at least some data
-        if (extracted.signOn || extracted.finish || extracted.totalHours !== undefined) {
-            return extracted;
-        }
-        
-        return null;
-    }
+}
     
     // Parse OCR text to extract shift information
     parseShiftInfo(ocrText) {
@@ -1001,7 +797,7 @@ class MyShiftApp {
         // Show which fields were populated
         if (fields.length > 0) {
             const status = document.getElementById('ocrStatus');
-            status.textContent = `📋 Auto-filled: ${fields.join(', ')}`;
+            status.textContent = ` Auto-filled: ${fields.join(', ')}`;
             status.className = 'ocr-status success';
         }
     }
