@@ -10,8 +10,6 @@ class MyShiftApp {
         this.initializeWeeks();
         
         this.days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        
-        this.init();
     }
     
     // Initialize dynamic weeks based on current date
@@ -47,19 +45,31 @@ class MyShiftApp {
     }
     
     async init() {
-        await this.initDB();
-        this.setupEventListeners();
-        this.renderWeekView();
-        
-        // Check for week updates every hour
-        setInterval(() => this.checkWeekUpdate(), 60 * 60 * 1000);
-        
-        // Also check on app focus/visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                this.checkWeekUpdate();
-            }
-        });
+        try {
+            await this.initDB();
+            this.setupEventListeners();
+            this.renderWeekView();
+            
+            // Check for week updates every hour
+            setInterval(() => this.checkWeekUpdate(), 60 * 60 * 1000);
+            
+            // Also check on app focus/visibility change
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    this.checkWeekUpdate();
+                }
+            });
+        } catch (error) {
+            console.error('App initialization failed:', error);
+            // Show error message to user
+            document.body.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; font-family: system-ui;">
+                    <h1 style="color: #ef4444;">App Failed to Load</h1>
+                    <p style="color: #64748b;">Please refresh the page or check your browser settings.</p>
+                    <button onclick="location.reload()" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 20px;">Refresh</button>
+                </div>
+            `;
+        }
     }
     
     // Initialize IndexedDB
@@ -657,6 +667,12 @@ class MyShiftApp {
 }
 
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new MyShiftApp();
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        window.app = new MyShiftApp();
+        await window.app.init();
+        console.log('MyShift App initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize MyShift App:', error);
+    }
 });
