@@ -444,10 +444,21 @@ class MyShiftApp {
         const event = new Event('change');
         document.getElementById('isDayOff').dispatchEvent(event);
         
-        // Reset copy days selection
+        // Reset copy days selection and disable current day
         document.querySelectorAll('.copy-day-btn').forEach(btn => {
             btn.classList.remove('selected');
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
         });
+        
+        // Disable the current day in copy buttons
+        const currentDayBtn = document.querySelector(`.copy-day-btn[data-day="${this.currentShift.day}"]`);
+        if (currentDayBtn) {
+            currentDayBtn.disabled = true;
+            currentDayBtn.style.opacity = '0.5';
+            currentDayBtn.style.cursor = 'not-allowed';
+        }
         
         // Close details modal and open edit modal
         this.closeModal('shiftModal');
@@ -513,10 +524,18 @@ class MyShiftApp {
         // Reset copy days selection
         document.querySelectorAll('.copy-day-btn').forEach(btn => {
             btn.classList.remove('selected');
+            btn.disabled = false;
         });
         
         if (day) {
             document.getElementById('shiftDay').value = day;
+            // Disable the current day in copy buttons
+            const currentDayBtn = document.querySelector(`.copy-day-btn[data-day="${day}"]`);
+            if (currentDayBtn) {
+                currentDayBtn.disabled = true;
+                currentDayBtn.style.opacity = '0.5';
+                currentDayBtn.style.cursor = 'not-allowed';
+            }
         }
         
         this.openModal('addShiftModal');
@@ -524,13 +543,25 @@ class MyShiftApp {
     
     // Save shift
     async saveShift() {
+        console.log('Save shift function called');
+        
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
         const shiftId = document.getElementById('shiftId').value;
         
+        console.log('Shift data:', { isDayOff, selectedDay, shiftId });
+        
+        // Validate required fields
+        if (!selectedDay || (!isDayOff && !shiftId.trim())) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
         // Get selected copy days
         const selectedButtons = document.querySelectorAll('.copy-day-btn.selected');
         const selectedDays = Array.from(selectedButtons).map(btn => btn.dataset.day);
+        
+        console.log('Selected copy days:', selectedDays);
         
         // Create shift data
         let shiftData;
@@ -547,9 +578,11 @@ class MyShiftApp {
                 week: this.currentWeek,
                 day: selectedDay,
                 isDayOff: false,
-                shiftId: shiftId
+                shiftId: shiftId.trim()
             };
         }
+        
+        console.log('Shift data to save:', shiftData);
         
         try {
             // Save to selected days
@@ -560,24 +593,30 @@ class MyShiftApp {
                 const existingShifts = await this.getShiftsForDay(this.currentWeek, day);
                 if (existingShifts.length > 0) {
                     // Update existing shift
+                    console.log('Updating existing shift on', day);
                     await this.updateShift(existingShifts[0].id, dayShiftData);
                 } else {
                     // Add new shift
+                    console.log('Adding new shift on', day);
                     await this.addShift(dayShiftData);
                 }
             }
             
-            // If no copy days selected, just save to the original day
+            // If no copy days selected, just save to original day
             if (selectedDays.length === 0) {
                 const existingShifts = await this.getShiftsForDay(this.currentWeek, selectedDay);
                 if (existingShifts.length > 0) {
                     // Update existing shift
+                    console.log('Updating existing shift on original day:', selectedDay);
                     await this.updateShift(existingShifts[0].id, shiftData);
                 } else {
                     // Add new shift
+                    console.log('Adding new shift on original day:', selectedDay);
                     await this.addShift(shiftData);
                 }
             }
+            
+            console.log('Shift saved successfully');
             
             // Close modal and refresh
             this.closeModal('addShiftModal');
