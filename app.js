@@ -561,8 +561,14 @@ setupOCR() {
     const processing = document.getElementById('ocrProcessing');
     const status = document.getElementById('ocrStatus');
 
+    // Test API key loading
+    console.log('Claude API Key loaded:', CLAUDE_API_KEY ? 'YES' : 'NO');
+    console.log('API Key first 3 chars:', CLAUDE_API_KEY.substring(0, 3));
+
     // 버튼 클릭 → 파일 선택
     selectBtn.addEventListener('click', () => {
+        // Test: Show API key first 3 characters
+        alert(`API Key loaded: ${CLAUDE_API_KEY.substring(0, 3)}...`);
         photoInput.click();
     });
 
@@ -585,10 +591,12 @@ setupOCR() {
 
         try {
             console.log('Starting Claude AI OCR...');
+            console.log('Using API Key:', CLAUDE_API_KEY.substring(0, 10) + '...');
             
             // Convert image to base64
             const base64Image = await this.fileToBase64(file);
             const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+            console.log('Base64 image length:', base64Data.length);
             
             // Call Claude AI API
             const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -619,8 +627,13 @@ setupOCR() {
                 })
             });
 
+            console.log('API Response status:', response.status);
+            console.log('API Response headers:', response.headers);
+
             if (!response.ok) {
-                throw new Error(`Claude API error: ${response.status} ${response.statusText}`);
+                const errorText = await response.text();
+                console.error('API Error Response:', errorText);
+                throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText}`);
             }
 
             const result = await response.json();
@@ -637,6 +650,8 @@ setupOCR() {
             try {
                 shiftData = JSON.parse(content);
             } catch (parseError) {
+                console.error('JSON Parse Error:', parseError);
+                console.error('Raw content:', content);
                 throw new Error('Failed to parse Claude response as JSON');
             }
 
@@ -658,6 +673,7 @@ setupOCR() {
         } catch (err) {
             console.error('Claude AI OCR Error:', err);
             status.textContent = '❌ OCR failed: ' + err.message;
+            alert('OCR Error: ' + err.message);
         } finally {
             processing.style.display = 'none';
         }
