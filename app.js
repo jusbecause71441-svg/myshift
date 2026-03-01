@@ -1,5 +1,4 @@
-// MyShift App - Bus Driver Schedule Manager
-
+// MyShift App - Simple Bus Driver Schedule Manager
 class MyShiftApp {
     constructor() {
         this.db = null;
@@ -21,7 +20,7 @@ class MyShiftApp {
         const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
         const daysSinceSunday = currentDay; // Days since last Sunday (0 if today is Sunday)
         
-        // Find the start of current week (Sunday)
+        // Find start of current week (Sunday)
         const currentWeekStart = new Date(today);
         currentWeekStart.setDate(today.getDate() - daysSinceSunday);
         currentWeekStart.setHours(0, 0, 0, 0); // Set to midnight
@@ -37,9 +36,6 @@ class MyShiftApp {
                 label: this.formatWeekLabel(weekStart)
             });
         }
-        
-        // Clean up old shift data
-        this.cleanupOldShifts();
     }
     
     // Format week label (e.g., "1 Mar 26")
@@ -48,65 +44,6 @@ class MyShiftApp {
         const month = date.toLocaleDateString('en-US', { month: 'short' });
         const year = date.getFullYear().toString().slice(-2);
         return `${day} ${month} ${year}`;
-    }
-    
-    // Clean up old shift data (past weeks)
-    async cleanupOldShifts() {
-        if (!this.db) return;
-        
-        try {
-            const oldestWeekStart = this.weeks[0].start;
-            
-            // Get all shifts
-            const transaction = this.db.transaction(['shifts'], 'readwrite');
-            const store = transaction.objectStore('shifts');
-            const request = store.getAll();
-            
-            request.onsuccess = () => {
-                const shifts = request.result;
-                const shiftsToDelete = [];
-                
-                // Find shifts from past weeks
-                shifts.forEach(shift => {
-                    const shiftWeek = this.weeks[shift.week];
-                    if (shiftWeek && shiftWeek.start < oldestWeekStart) {
-                        shiftsToDelete.push(shift.id);
-                    }
-                });
-                
-                // Delete old shifts and their photos
-                shiftsToDelete.forEach(async (shiftId) => {
-                    // Delete shift
-                    await this.deleteShiftFromDB(shiftId);
-                    
-                    // Delete associated photos
-                    const photos = await this.getShiftPhotos(shiftId);
-                    for (const photo of photos) {
-                        await this.deletePhotoFromDB(photo.id);
-                    }
-                });
-                
-                if (shiftsToDelete.length > 0) {
-                    console.log(`Cleaned up ${shiftsToDelete.length} old shifts`);
-                }
-            };
-        } catch (error) {
-            console.error('Error cleaning up old shifts:', error);
-        }
-    }
-    
-    // Check if week needs to be updated (call this periodically)
-    checkWeekUpdate() {
-        const today = new Date();
-        const currentWeekStart = this.weeks[1].start; // Middle week should be current
-        const daysSinceWeekStart = Math.floor((today - currentWeekStart) / (1000 * 60 * 60 * 24));
-        
-        // If we're more than 7 days past the current week start, update weeks
-        if (daysSinceWeekStart >= 7) {
-            this.initializeWeeks();
-            this.renderWeekView();
-            console.log('Weeks updated for new period');
-        }
     }
     
     async init() {
@@ -208,33 +145,14 @@ class MyShiftApp {
             }
         });
         
-        // Copy days functionality - handle button toggles
-        document.querySelectorAll('.copy-day-btn').forEach(button => {
-            // Handle click events
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                button.classList.toggle('selected');
-                this.updateCopyDaysState();
-            });
-            
-            // Handle touch events for mobile
-            button.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                button.classList.toggle('selected');
-                this.updateCopyDaysState();
-            });
-        });
-        
         // Photo upload
         document.getElementById('uploadBtn').addEventListener('click', () => {
-            // Remove capture attribute to open gallery/file picker
             const photoInput = document.getElementById('photoInput');
             photoInput.removeAttribute('capture');
             photoInput.click();
         });
         
         document.getElementById('cameraBtn').addEventListener('click', () => {
-            // Add capture attribute to open camera
             const photoInput = document.getElementById('photoInput');
             photoInput.setAttribute('capture', 'environment');
             photoInput.click();
@@ -244,14 +162,10 @@ class MyShiftApp {
             this.handlePhotoUpload(e.target.files);
         });
         
-        // Delete shift
-        document.getElementById('deleteShiftBtn').addEventListener('click', () => {
-            this.deleteShift();
-        });
-        
-        // Edit shift
-        document.getElementById('editShiftBtn').addEventListener('click', () => {
-            this.openEditShiftModal();
+        // Form submission
+        document.getElementById('shiftForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveShift();
         });
         
         // Photo fullscreen close
@@ -283,30 +197,34 @@ class MyShiftApp {
         this.renderWeekView();
     }
     
+    // Check if week needs to be updated
+    checkWeekUpdate() {
+        const today = new Date();
+        const currentWeekStart = this.weeks[1].start; // Middle week should be current
+        const daysSinceWeekStart = Math.floor((today - currentWeekStart) / (1000 * 60 * 60 * 24));
+        
+        // If we're more than 7 days past the current week start, update weeks
+        if (daysSinceWeekStart >= 7) {
+            this.initializeWeeks();
+            this.renderWeekView();
+        }
+    }
+    
     // Format hours display
     formatHours(hours) {
         if (typeof hours === 'object' && hours.hours !== undefined) {
-            // Handle new format: {hours: 7, minutes: 22}
             const h = hours.hours;
             const m = hours.minutes;
             if (m === 0) {
                 return `${h}h`;
             }
             return `${h}h ${m}m`;
-        } else if (typeof hours === 'string' && hours.includes('.')) {
-            // Handle legacy decimal format
-            const [wholeHours, decimalHours] = hours.split('.');
-            const minutes = Math.round((parseFloat('0.' + decimalHours) * 60));
-            return `${wholeHours}h ${minutes}m`;
         } else if (typeof hours === 'number') {
-            // Handle legacy number format
             const wholeHours = Math.floor(hours);
             const decimalHours = hours - wholeHours;
             const minutes = Math.round(decimalHours * 60);
             if (minutes === 0) {
                 return `${wholeHours}h`;
-            } else if (minutes === 60) {
-                return `${wholeHours + 1}h`;
             }
             return `${wholeHours}h ${minutes}m`;
         }
@@ -355,8 +273,13 @@ class MyShiftApp {
             const shifts = await this.getShiftsForDay(this.currentWeek, dayName);
             const photos = shifts.length > 0 ? await this.getShiftPhotos(shifts[0].id) : [];
             
+            // Determine day card class based on day name
+            let dayCardClass = 'day-card';
+            if (dayName === 'sunday') dayCardClass += ' sunday-card';
+            if (dayName === 'saturday') dayCardClass += ' saturday-card';
+            
             html += `
-                <div class="day-card ${shifts.length > 0 && shifts.some(shift => shift.isDayOff) ? 'day-off-card' : ''}" data-day="${dayName}">
+                <div class="${dayCardClass}" data-day="${dayName}">
                     <div class="day-header">
                         <span class="day-name">${dayName.charAt(0).toUpperCase() + dayName.slice(1)}</span>
                         <span class="day-date">${dayDate}</span>
@@ -389,7 +312,7 @@ class MyShiftApp {
         
         weekView.innerHTML = html;
         
-        // Add click listeners to shift items and day off items
+        // Add click listeners
         document.querySelectorAll('.shift-item, .day-off-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -398,7 +321,6 @@ class MyShiftApp {
             });
         });
         
-        // Add click listeners to day cards for adding shifts
         document.querySelectorAll('.day-card').forEach(card => {
             card.addEventListener('click', (e) => {
                 if (e.target.classList.contains('no-shifts') || e.target.classList.contains('day-card')) {
@@ -432,27 +354,12 @@ class MyShiftApp {
         weekSelector.innerHTML = html;
     }
     
-    // Update copy days state based on selected day
-    updateCopyDaysState() {
-        const selectedDay = document.getElementById('shiftDay').value;
-        const copyButtons = document.querySelectorAll('.copy-day-btn');
-        
-        copyButtons.forEach(button => {
-            const day = button.dataset.day;
-            
-            // Uncheck the selected day (prevent copying to same day)
-            if (day === selectedDay) {
-                button.classList.remove('selected');
-            }
-        });
-    }
-    isCurrentWeek(weekStart) {
+    // Check if date is in current week
+    isCurrentWeek(date) {
         const today = new Date();
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-        
-        return today >= weekStart && today <= weekEnd;
+        const currentWeekStart = this.weeks[1].start; // Middle week should be current
+        const daysSinceWeekStart = Math.floor((today - currentWeekStart) / (1000 * 60 * 60 * 24));
+        return daysSinceWeekStart >= 0 && daysSinceWeekStart < 7;
     }
     
     // Get shifts for a specific day
@@ -472,24 +379,23 @@ class MyShiftApp {
         });
     }
     
-    // Open shift details modal (READ-ONLY - no data modification)
+    // Open shift details modal
     async openShiftDetails(shiftId) {
         const shift = await this.getShift(shiftId);
         if (!shift) return;
         
-        // Store reference for viewing only (no modification)
         this.currentShift = shift;
         
-        // Populate modal with shift data (no modification)
+        // Populate modal with shift data
         document.getElementById('modalShiftId').textContent = shift.shiftId;
         document.getElementById('modalSignOn').textContent = this.formatTime(shift.signOn);
         document.getElementById('modalFinish').textContent = this.formatTime(shift.finish);
         document.getElementById('modalTotalHours').textContent = this.formatHours(shift.totalHours);
         
-        // Load photos (read-only display)
+        // Load photos
         await this.loadShiftPhotos(shiftId);
         
-        // Show modal for viewing only
+        // Show modal
         this.openModal('shiftModal');
     }
     
@@ -536,130 +442,7 @@ class MyShiftApp {
         });
     }
     
-    // Convert file to base64
-    fileToBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-            reader.readAsDataURL(file);
-        });
-    }
-}
-    
-    // Parse OCR text to extract shift information
-    parseShiftInfo(ocrText) {
-        const text = ocrText.toLowerCase();
-        
-        // Enhanced patterns for better recognition
-        const patterns = {
-            shiftId: [
-                /shift\s*[:\s]*([a-z0-9]+)/i,
-                /id\s*[:\s]*([a-z0-9]+)/i,
-                /([a-z]\d{3,4})/i,
-                /(\d{3,4})/i
-            ],
-            signOn: [
-                /sign\s*on\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
-                /start\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
-                /([0-9]{1,2}[:\s]*[0-9]{2})\s*(?:am|pm)?/i
-            ],
-            finish: [
-                /sign\s*off\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
-                /finish\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
-                /end\s*([0-9]{1,2}[:\s]*[0-9]{2})/i,
-                /([0-9]{1,2}[:\s]*[0-9]{2})\s*(?:am|pm)?/i
-            ],
-            totalHours: [
-                /total\s*hours?\s*([0-9]+)\s*(?:hours?|hrs?|h)?/i,
-                /([0-9]+)\s*(?:hours?|hrs?|h)/i,
-                /([0-9]+)\s*(?:hours?|hrs?|h)?\s*([0-9]+)\s*(?:minutes?|mins?|m)?/i
-            ]
-        };
-        
-        const extracted = {};
-        
-        // Extract Shift ID
-        for (const pattern of patterns.shiftId) {
-            const match = text.match(pattern);
-            if (match) {
-                extracted.shiftId = match[1] || match[2];
-                break;
-            }
-        }
-        
-        // Extract Sign On time
-        for (const pattern of patterns.signOn) {
-            const match = text.match(pattern);
-            if (match) {
-                let time = match[1];
-                if (match[2]) time += ':' + match[2];
-                else time += ':00';
-                extracted.signOn = time;
-                break;
-            }
-        }
-        
-        // Extract Finish time
-        for (const pattern of patterns.finish) {
-            const match = text.match(pattern);
-            if (match) {
-                let time = match[1];
-                if (match[2]) time += ':' + match[2];
-                else time += ':00';
-                extracted.finish = time;
-                break;
-            }
-        }
-        
-        // Extract Total Hours
-        for (const pattern of patterns.totalHours) {
-            const match = text.match(pattern);
-            if (match) {
-                if (match[1] && match[2]) {
-                    extracted.totalHours = parseInt(match[1]);
-                    extracted.totalMinutes = parseInt(match[2]);
-                } else if (match[1]) {
-                    extracted.totalHours = parseInt(match[1]);
-                    extracted.totalMinutes = 0;
-                }
-                break;
-            }
-        }
-        
-        // Return data if we found anything
-        return Object.keys(extracted).length > 0 ? extracted : null;
-    }
-    
-    // Populate form with extracted data
-    populateFormWithExtractedData(data) {
-        const fields = [];
-        
-        if (data.shiftId) {
-            document.getElementById('shiftId').value = data.shiftId;
-            fields.push('Shift ID');
-        }
-        if (data.signOn) {
-            document.getElementById('signOnTime').value = data.signOn;
-            fields.push('Sign On');
-        }
-        if (data.finish) {
-            document.getElementById('finishTime').value = data.finish;
-            fields.push('Finish');
-        }
-        if (data.totalHours !== undefined) {
-            document.getElementById('totalHoursHours').value = data.totalHours || 0;
-            document.getElementById('totalHoursMinutes').value = data.totalMinutes || 0;
-            fields.push('Total Hours');
-        }
-        
-        // Show which fields were populated
-        if (fields.length > 0) {
-            const status = document.getElementById('ocrStatus');
-            status.textContent = ` Auto-filled: ${fields.join(', ')}`;
-            status.className = 'ocr-status success';
-        }
-    }
+    // Open add shift modal
     openAddShiftModal(day = null) {
         this.editingShift = null;
         document.getElementById('addModalTitle').textContent = 'Add New Shift';
@@ -672,51 +455,8 @@ class MyShiftApp {
         
         if (day) {
             document.getElementById('shiftDay').value = day;
-            // Update copy days state
-            this.updateCopyDaysState();
         }
         
-        this.openModal('addShiftModal');
-    }
-    
-    // Open edit shift modal
-    async openEditShiftModal() {
-        if (!this.currentShift) return;
-        
-        this.editingShift = this.currentShift;
-        document.getElementById('addModalTitle').textContent = 'Edit Shift';
-        
-        // Populate form
-        document.getElementById('shiftDay').value = this.currentShift.day;
-        document.getElementById('isDayOff').checked = this.currentShift.isDayOff || false;
-        
-        // Handle Day Off checkbox change
-        const event = new Event('change');
-        document.getElementById('isDayOff').dispatchEvent(event);
-        
-        if (!this.currentShift.isDayOff) {
-            // Populate regular shift fields
-            document.getElementById('shiftId').value = this.currentShift.shiftId;
-            document.getElementById('signOnTime').value = this.currentShift.signOn;
-            document.getElementById('finishTime').value = this.currentShift.finish;
-            
-            // Handle total hours - support both old and new formats
-            if (typeof this.currentShift.totalHours === 'object' && this.currentShift.totalHours.hours !== undefined) {
-                // New format
-                document.getElementById('totalHoursHours').value = this.currentShift.totalHours.hours;
-                document.getElementById('totalHoursMinutes').value = this.currentShift.totalHours.minutes;
-            } else {
-                // Legacy format - convert to hours/minutes
-                const totalHours = parseFloat(this.currentShift.totalHours);
-                const hours = Math.floor(totalHours);
-                const minutes = Math.round((totalHours - hours) * 60);
-                document.getElementById('totalHoursHours').value = hours;
-                document.getElementById('totalHoursMinutes').value = minutes;
-            }
-        }
-        
-        // Close details modal and open edit modal
-        this.closeModal('shiftModal');
         this.openModal('addShiftModal');
     }
     
@@ -724,15 +464,14 @@ class MyShiftApp {
     async saveShift() {
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
-        const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
-        const copyDays = Array.from(copyButtons).map(btn => btn.dataset.day);
         
-        // Create base shift data
-        let baseFormData;
+        // Create shift data
+        let shiftData;
         
         if (isDayOff) {
-            baseFormData = {
+            shiftData = {
                 week: this.currentWeek,
+                day: selectedDay,
                 isDayOff: true,
                 shiftId: 'DAY OFF',
                 signOn: '00:00',
@@ -743,8 +482,9 @@ class MyShiftApp {
             const hours = parseInt(document.getElementById('totalHoursHours').value);
             const minutes = parseInt(document.getElementById('totalHoursMinutes').value);
             
-            baseFormData = {
+            shiftData = {
                 week: this.currentWeek,
+                day: selectedDay,
                 isDayOff: false,
                 shiftId: document.getElementById('shiftId').value,
                 signOn: document.getElementById('signOnTime').value,
@@ -754,27 +494,10 @@ class MyShiftApp {
         }
         
         try {
-            // Collect all days to save (primary + copy days)
-            const allDaysToSave = [selectedDay, ...copyDays];
-            
-            for (const day of allDaysToSave) {
-                console.log('Processing day:', day);
-                
-                // Check if shift already exists on this day
-                const existingShifts = await this.getShiftsForDay(this.currentWeek, day);
-                const existingShift = existingShifts[0]; // Get first (and should be only) shift
-                
-                const dayFormData = { ...baseFormData, day };
-                
-                if (existingShift) {
-                    // Update existing shift
-                    console.log('Updating existing shift on day:', day);
-                    await this.updateShift(existingShift.id, dayFormData);
-                } else {
-                    // Add new shift
-                    console.log('Adding new shift on day:', day);
-                    await this.addShift(dayFormData);
-                }
+            if (this.editingShift) {
+                await this.updateShift(this.editingShift.id, shiftData);
+            } else {
+                await this.addShift(shiftData);
             }
             
             this.closeModal('addShiftModal');
@@ -899,86 +622,6 @@ class MyShiftApp {
         }
     }
     
-    // Open photo fullscreen
-    openPhotoFullscreen(photoData) {
-        document.getElementById('fullscreenPhoto').src = photoData;
-        this.openModal('photoFullscreenModal');
-        
-        // Initialize pinch zoom for touch devices
-        this.initPhotoZoom();
-    }
-    
-    // Initialize photo zoom functionality
-    initPhotoZoom() {
-        const photo = document.getElementById('fullscreenPhoto');
-        let scale = 1;
-        let initialDistance = 0;
-        
-        // Touch events for pinch zoom
-        photo.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 2) {
-                initialDistance = this.getDistance(e.touches[0], e.touches[1]);
-                e.preventDefault();
-            }
-        });
-        
-        photo.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 2) {
-                const currentDistance = this.getDistance(e.touches[0], e.touches[1]);
-                const scaleChange = currentDistance / initialDistance;
-                scale = Math.min(Math.max(1, scale * scaleChange), 5); // Min 1x, max 5x zoom
-                photo.style.transform = `scale(${scale})`;
-                initialDistance = currentDistance;
-                e.preventDefault();
-            }
-        });
-        
-        photo.addEventListener('touchend', () => {
-            // Reset scale on touch end for next pinch
-            if (scale <= 1.1) {
-                photo.style.transform = 'scale(1)';
-                scale = 1;
-            }
-        });
-        
-        // Double tap to reset zoom
-        let lastTap = 0;
-        photo.addEventListener('touchend', (e) => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            if (tapLength < 500 && tapLength > 0) {
-                photo.style.transform = 'scale(1)';
-                scale = 1;
-                e.preventDefault();
-            }
-            lastTap = currentTime;
-        });
-        
-        // Mouse wheel zoom for desktop
-        photo.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            scale = Math.min(Math.max(1, scale * delta), 5);
-            photo.style.transform = `scale(${scale})`;
-        });
-        
-        // Click to reset zoom
-        photo.addEventListener('click', (e) => {
-            if (e.detail === 2) { // Double click
-                photo.style.transform = 'scale(1)';
-                scale = 1;
-                e.preventDefault();
-            }
-        });
-    }
-    
-    // Calculate distance between two touch points
-    getDistance(touch1, touch2) {
-        const dx = touch1.clientX - touch2.clientX;
-        const dy = touch1.clientY - touch2.clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-    
     // Delete photo from database
     async deletePhotoFromDB(photoId) {
         return new Promise((resolve, reject) => {
@@ -989,6 +632,12 @@ class MyShiftApp {
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+    }
+    
+    // Open photo fullscreen
+    openPhotoFullscreen(photoData) {
+        document.getElementById('fullscreenPhoto').src = photoData;
+        this.openModal('photoFullscreenModal');
     }
     
     // Modal helpers
@@ -1011,48 +660,3 @@ class MyShiftApp {
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new MyShiftApp();
 });
-
-// PWA Installation
-let deferredPrompt;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    
-    // Show install button or banner
-    const installBanner = document.createElement('div');
-    installBanner.className = 'install-banner';
-    installBanner.innerHTML = `
-        <p>Install MyShift for quick access!</p>
-        <button id="installBtn">Install</button>
-        <button id="dismissBtn">Not now</button>
-    `;
-    
-    document.body.appendChild(installBanner);
-    
-    document.getElementById('installBtn').addEventListener('click', async () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            deferredPrompt = null;
-            installBanner.remove();
-        }
-    });
-    
-    document.getElementById('dismissBtn').addEventListener('click', () => {
-        installBanner.remove();
-    });
-});
-
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-                console.log('SW registered: ', registration);
-            })
-            .catch((registrationError) => {
-                console.log('SW registration failed: ', registrationError);
-            });
-    });
-}
