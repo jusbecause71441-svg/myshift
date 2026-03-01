@@ -551,17 +551,9 @@ class MyShiftApp {
     }
     
     // -----------------------------
-// OCR Setup & Auto-Fill Function
+// OCR Setup & Auto-Fill Function (Claude AI)
 // -----------------------------
 setupOCR() {
-    // Check if Tesseract is loaded
-    if (typeof Tesseract === 'undefined') {
-        console.error('Tesseract.js not loaded');
-        return;
-    }
-    
-    console.log('Tesseract.js loaded successfully:', typeof Tesseract);
-
     const selectBtn = document.getElementById('selectPhotoForOCR');
     const photoInput = document.getElementById('ocrPhotoInput');
     const preview = document.getElementById('ocrPreview');
@@ -589,67 +581,83 @@ setupOCR() {
 
         // 처리 시작 표시
         processing.style.display = 'flex';
-        status.textContent = '';
+        status.textContent = 'Processing photo...';
 
         try {
-            console.log('Starting OCR processing...');
+            console.log('Starting Claude AI OCR...');
             
-            // OCR 수행 (Tesseract.js)
-            const { data: { text } } = await Tesseract.recognize(file, 'eng', {
-                logger: m => {
-                    // 진행 표시
-                    if (m.status === 'recognizing text') {
-                        status.textContent = `Processing photo... ${Math.round(m.progress * 100)}%`;
-                    }
-                }
+            // Convert image to base64
+            const base64Image = await this.fileToBase64(file);
+            const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+            
+            // Call Claude AI API
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify({
+                    model: 'claude-3-5-haiku-20241022',
+                    max_tokens: 500,
+                    messages: [{
+                        role: 'user',
+                        content: [{
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: 'image/jpeg',
+                                data: base64Data
+                            }
+                        }, {
+                            type: 'text',
+                            text: 'Extract shift information from this image. Return JSON with: shiftId (string), signOn (HH:MM format), finish (HH:MM format), totalHours (object with hours and minutes). Only return valid JSON, no other text.'
+                        }]
+                    }]
+                })
             });
 
-            console.log('OCR Result:', text);
-
-            // OCR 텍스트 전처리
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
-            let shiftId = '', signOn = '', finish = '', totalHours = '';
-
-            lines.forEach(line => {
-                // 예시: S123, 08:35, 17:30
-                if (!shiftId && /^S\d+/i.test(line)) shiftId = line.match(/^S\d+/i)[0];
-                if (!signOn && /\b([01]?\d|2[0-3]):[0-5]\d\b/.test(line)) {
-                    const times = line.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/g);
-                    if (times && times.length >= 2) {
-                        signOn = times[0];
-                        finish = times[1];
-                    } else if (times && times.length === 1) {
-                        signOn = times[0];
-                    }
-                }
-            });
-
-            // Total hours 계산 (finish - signOn)
-            if (signOn && finish) {
-                const [h1, m1] = signOn.split(':').map(Number);
-                const [h2, m2] = finish.split(':').map(Number);
-                const startMinutes = h1 * 60 + m1;
-                const endMinutes = h2 * 60 + m2;
-                const diffMinutes = endMinutes >= startMinutes ? endMinutes - startMinutes : (24*60 - startMinutes + endMinutes);
-                const hours = Math.floor(diffMinutes / 60);
-                const minutes = diffMinutes % 60;
-                totalHours = { hours, minutes };
+            if (!response.ok) {
+                throw new Error(`Claude API error: ${response.status} ${response.statusText}`);
             }
 
+            const result = await response.json();
+            console.log('Claude API response:', result);
+
+            // Extract the content from Claude's response
+            const content = result.content[0]?.text;
+            if (!content) {
+                throw new Error('No content in Claude response');
+            }
+
+            // Parse JSON response
+            let shiftData;
+            try {
+                shiftData = JSON.parse(content);
+            } catch (parseError) {
+                throw new Error('Failed to parse Claude response as JSON');
+            }
+
+            console.log('Parsed shift data:', shiftData);
+
             // Shift 폼에 자동 입력
-            if (shiftId) document.getElementById('shiftId').value = shiftId;
-            if (signOn) document.getElementById('signOnTime').value = signOn;
-            if (finish) document.getElementById('finishTime').value = finish;
-            if (totalHours) {
-                document.getElementById('totalHoursHours').value = totalHours.hours;
-                document.getElementById('totalHoursMinutes').value = totalHours.minutes;
+            if (shiftData.shiftId) document.getElementById('shiftId').value = shiftData.shiftId;
+            if (shiftData.signOn) document.getElementById('signOnTime').value = shiftData.signOn;
+            if (shiftData.finish) document.getElementById('finishTime').value = shiftData.finish;
+            if (shiftData.totalHours) {
+                const hours = shiftData.totalHours.hours || 0;
+                const minutes = shiftData.totalHours.minutes || 0;
+                document.getElementById('totalHoursHours').value = hours;
+                document.getElementById('totalHoursMinutes').value = minutes;
             }
 
             status.textContent = '✅ OCR completed';
-            console.log('OCR completed successfully');
+            console.log('Claude AI OCR completed successfully');
         } catch (err) {
-            console.error('OCR Error:', err);
-            status.textContent = '❌ OCR failed';
+            console.error('Claude AI OCR Error:', err);
+            status.textContent = '❌ OCR failed: ' + err.message;
         } finally {
             processing.style.display = 'none';
         }
