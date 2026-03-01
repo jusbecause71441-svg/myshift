@@ -312,7 +312,8 @@ class MyShiftApp {
             html += `
                 <div class="${dayCardClass}" data-day="${dayName}">
                     <div class="day-header">
-                        <span class="day-name">${dayDate} (${dayName.charAt(0).toUpperCase() + dayName.slice(1)})</span>
+                        <span class="day-name">${dayName.charAt(0).toUpperCase() + dayName.slice(1)}</span>
+                        <span class="day-date">${dayDate}</span>
                     </div>
                     <div class="shifts-container">
                         ${shifts.length > 0 ? shifts.map(shift => {
@@ -366,6 +367,13 @@ class MyShiftApp {
     // Update week selector buttons
     updateWeekSelector() {
         const weekSelector = document.querySelector('.week-selector');
+        console.log('Updating week selector, found:', weekSelector);
+        console.log('Weeks data:', this.weeks);
+        
+        if (!weekSelector) {
+            console.error('Week selector element not found!');
+            return;
+        }
         
         let html = '';
         this.weeks.forEach((week, index) => {
@@ -384,6 +392,7 @@ class MyShiftApp {
         });
         
         weekSelector.innerHTML = html;
+        console.log('Week selector HTML set:', html);
     }
     
     // Check if date is in current week
@@ -547,12 +556,12 @@ class MyShiftApp {
         
         const isDayOff = document.getElementById('isDayOff').checked;
         const selectedDay = document.getElementById('shiftDay').value;
-        const shiftId = document.getElementById('shiftId').value;
+        const shiftId = document.getElementById('shiftId').value.trim();
         
         console.log('Shift data:', { isDayOff, selectedDay, shiftId });
         
         // Validate required fields
-        if (!selectedDay || (!isDayOff && !shiftId.trim())) {
+        if (!selectedDay || (!isDayOff && !shiftId)) {
             alert('Please fill in all required fields');
             return;
         }
@@ -578,7 +587,7 @@ class MyShiftApp {
                 week: this.currentWeek,
                 day: selectedDay,
                 isDayOff: false,
-                shiftId: shiftId.trim()
+                shiftId: shiftId
             };
         }
         
@@ -698,7 +707,7 @@ class MyShiftApp {
     // Handle photo upload
     async handlePhotoUpload(files) {
         // Get the current shift ID from the form
-        const shiftId = document.getElementById('shiftId').value;
+        const shiftId = document.getElementById('shiftId').value.trim();
         const selectedDay = document.getElementById('shiftDay').value;
         
         // Find or create shift for this day
@@ -708,15 +717,22 @@ class MyShiftApp {
         if (existingShifts.length > 0) {
             currentShift = existingShifts[0];
         } else {
-            // Create a temporary shift for photo upload
-            const tempShiftData = {
-                week: this.currentWeek,
-                day: selectedDay,
-                isDayOff: false,
-                shiftId: shiftId || 'TEMP_SHIFT'
-            };
-            const newShiftId = await this.addShift(tempShiftData);
-            currentShift = { ...tempShiftData, id: newShiftId };
+            // Only create a temporary shift if no shift ID provided AND no existing shift
+            if (!shiftId) {
+                const tempShiftData = {
+                    week: this.currentWeek,
+                    day: selectedDay,
+                    isDayOff: false,
+                    shiftId: 'TEMP_SHIFT'
+                };
+                const newShiftId = await this.addShift(tempShiftData);
+                currentShift = { ...tempShiftData, id: newShiftId };
+            } else {
+                // Don't create temporary shift if user provided shift ID
+                // Let them save the shift properly first
+                alert('Please save the shift first, then upload photos');
+                return;
+            }
         }
         
         for (const file of files) {
