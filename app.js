@@ -284,27 +284,6 @@ class MyShiftApp {
         
         const weekStart = this.weeks[this.currentWeek].start;
         
-        // Get all shifts for the week to detect duplicates
-        const allWeekShifts = [];
-        for (let i = 0; i < 7; i++) {
-            const dayName = this.days[i];
-            const shifts = await this.getShiftsForDay(this.currentWeek, dayName);
-            allWeekShifts.push(...shifts);
-        }
-        
-        // Find duplicate shift IDs and identify original vs duplicates
-        const shiftIdMap = new Map(); // shiftId -> {original: shiftId, duplicates: [shiftIds]}
-        allWeekShifts.forEach(shift => {
-            if (!shiftIdMap.has(shift.shiftId)) {
-                shiftIdMap.set(shift.shiftId, {
-                    original: shift.id,
-                    duplicates: []
-                });
-            } else {
-                shiftIdMap.get(shift.shiftId).duplicates.push(shift.id);
-            }
-        });
-        
         let html = '';
         
         for (let i = 0; i < 7; i++) {
@@ -333,21 +312,15 @@ class MyShiftApp {
                     </div>
                     <div class="shifts-container">
                         ${shifts.length > 0 ? shifts.map(shift => {
-                            const shiftInfo = shiftIdMap.get(shift.shiftId);
-                            const isOriginal = shiftInfo && shiftInfo.original === shift.id;
-                            const isDuplicate = shiftInfo && shiftInfo.duplicates.includes(shift.id);
-                            
                             if (shift.isDayOff) {
                                 return `
-                                    <div class="day-off-item ${!isOriginal ? 'duplicate-shift' : ''}" data-shift-id="${shift.id}">
-                                        <div class="day-off-badge">
-                                            ${isOriginal ? 'OFF' : 'OFF'}
-                                        </div>
+                                    <div class="day-off-item" data-shift-id="${shift.id}">
+                                        <div class="day-off-badge">OFF</div>
                                     </div>
                                 `;
                             } else {
                                 return `
-                                    <div class="shift-item ${!isOriginal ? 'duplicate-shift' : ''}" data-shift-id="${shift.id}">
+                                    <div class="shift-item" data-shift-id="${shift.id}">
                                         <div class="shift-content">
                                             <div class="shift-id-large">#${shift.shiftId}</div>
                                             ${photos.length > 0 ? `
@@ -367,8 +340,8 @@ class MyShiftApp {
         
         weekView.innerHTML = html;
         
-        // Add click listeners - only for original shifts
-        document.querySelectorAll('.shift-item:not(.duplicate-shift), .day-off-item:not(.duplicate-shift)').forEach(item => {
+        // Add click listeners to ALL shifts (including duplicates)
+        document.querySelectorAll('.shift-item, .day-off-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const shiftId = parseInt(item.dataset.shiftId);
