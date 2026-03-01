@@ -597,14 +597,30 @@ class MyShiftApp {
         const selectBtn = document.getElementById('selectPhotoForOCR');
         
         try {
+            alert('🔍 Step 1: Starting OCR process');
+            console.log('🔍 Step 1: Starting OCR process');
+            
+            // Check if Claude config is loaded
+            if (typeof CLAUDE_API_KEY === 'undefined') {
+                alert('❌ ERROR: Claude API key not loaded! Check claude-config.js');
+                throw new Error('Claude API key not loaded');
+            }
+            
+            alert(`🔑 Step 2: API Key loaded: ${CLAUDE_API_KEY ? 'YES' : 'NO'}`);
+            console.log('🔑 Step 2: API Key loaded:', typeof CLAUDE_API_KEY !== 'undefined');
+            
             // Disable button during processing
             selectBtn.disabled = true;
             processing.style.display = 'block';
             
-            console.log('Starting Claude AI OCR processing...');
+            alert('📸 Step 3: Converting image to base64...');
+            console.log('📸 Step 3: Converting image to base64...');
             
             // Convert file to base64
             const base64Image = await this.fileToBase64(file);
+            
+            alert(`📏 Step 4: Image converted to base64 (${base64Image.length} chars)`);
+            console.log('📏 Step 4: Image converted to base64, length:', base64Image.length);
             
             // Prepare Claude API request
             const prompt = `Please extract shift information from this bus driver shift sheet image. Look for:
@@ -621,8 +637,13 @@ Return the data in this exact JSON format:
   "totalHours": "decimal_hours"
 }
 
-Only return the JSON, no other text.`;
+Only return JSON, no other text.`;
 
+            alert('🤖 Step 5: Sending request to Claude API...');
+            console.log('🤖 Step 5: Sending request to Claude API...');
+            console.log('🌐 API Endpoint:', CLAUDE_API_ENDPOINT);
+            console.log('🔑 Using API Key:', CLAUDE_API_KEY.substring(0, 10) + '...');
+            
             // Call Claude API
             const response = await fetch(CLAUDE_API_ENDPOINT, {
                 method: 'POST',
@@ -656,15 +677,24 @@ Only return the JSON, no other text.`;
                 })
             });
 
+            alert(`📡 Step 6: Response received: ${response.status} ${response.statusText}`);
+            console.log('📡 Step 6: Response received:', response.status, response.statusText);
+
             if (!response.ok) {
-                throw new Error(`Claude API error: ${response.status} ${response.statusText}`);
+                const errorText = await response.text();
+                alert(`❌ Step 7: API Error: ${errorText}`);
+                throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText}`);
             }
 
             const result = await response.json();
-            console.log('Claude API Response:', result);
+            alert('📋 Step 8: Parsed JSON response');
+            console.log('📋 Step 8: Parsed JSON response:', result);
 
             if (result.content && result.content[0] && result.content[0].text) {
                 const extractedText = result.content[0].text;
+                
+                alert('🔍 Step 9: Extracted text from Claude');
+                console.log('🔍 Step 9: Extracted text from Claude:', extractedText);
                 
                 // Try to parse JSON from Claude's response
                 let shiftData;
@@ -673,27 +703,41 @@ Only return the JSON, no other text.`;
                     const jsonMatch = extractedText.match(/\{[^}]+\}/);
                     if (jsonMatch) {
                         shiftData = JSON.parse(jsonMatch[0]);
+                        alert('✅ Step 10: Successfully parsed JSON');
+                        console.log('✅ Step 10: Successfully parsed JSON:', shiftData);
+                    } else {
+                        alert('⚠️ Step 10: No JSON found in response');
+                        console.log('⚠️ Step 10: No JSON found in response');
                     }
                 } catch (parseError) {
-                    console.error('Failed to parse Claude response:', parseError);
+                    alert(`❌ Step 10: JSON Parse Error: ${parseError.message}`);
+                    console.error('❌ Step 10: JSON Parse Error:', parseError);
                 }
 
                 if (shiftData) {
+                    alert('📝 Step 11: Populating form with extracted data');
+                    console.log('📝 Step 11: Populating form with extracted data:', shiftData);
+                    
                     // Populate form with extracted data
                     this.populateFormWithExtractedData(shiftData);
                     status.textContent = '✅ Shift info extracted successfully!';
                     status.className = 'ocr-status success';
+                    alert('🎉 Step 12: OCR Complete!');
                 } else {
+                    alert('⚠️ Step 11: No shift data extracted');
                     status.textContent = '⚠️ Could not extract shift information from photo';
                     status.className = 'ocr-status error';
                 }
             } else {
+                alert('❌ Step 9: No content in Claude response');
                 status.textContent = '⚠️ No response from Claude AI';
                 status.className = 'ocr-status error';
             }
             
         } catch (error) {
-            console.error('Claude OCR Error:', error);
+            alert(`❌ FATAL ERROR: ${error.message}`);
+            console.error('❌ FATAL ERROR:', error);
+            console.error('❌ ERROR STACK:', error.stack);
             
             let errorMessage = '❌ Error processing photo';
             
@@ -713,6 +757,7 @@ Only return the JSON, no other text.`;
             // Hide processing overlay and re-enable button
             processing.style.display = 'none';
             selectBtn.disabled = false;
+            alert('🔄 Process ended - button re-enabled');
         }
     }
 
