@@ -425,7 +425,7 @@ async function saveShift() {
         const dayOffDays = Array.from(dayOffButtons).map(b => b.dataset.day);
         allDays = [selectedDay, ...dayOffDays];
     } else {
-        const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
+        const copyButtons = document.querySelectorAll('#copyDaysButtons .copy-day-btn.selected:not(.hidden)');
         const copyDays = Array.from(copyButtons).map(b => b.dataset.day);
         allDays = [selectedDay, ...copyDays];
     }
