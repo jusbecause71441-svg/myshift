@@ -230,6 +230,33 @@ function closeAddModal() {
     pendingPhotos = [];
 }
 
+function updateDayOffDays() {
+    const selectedDay = document.getElementById('daySelect').value;
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const fullDays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const container = document.getElementById('dayOffDaysButtons');
+    container.innerHTML = '';
+    days.forEach((d, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-day-btn';
+        // Current day is always selected and disabled
+        if (fullDays[i] === selectedDay) {
+            btn.className += ' selected';
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        }
+        btn.textContent = d;
+        btn.dataset.day = fullDays[i];
+        btn.onclick = () => {
+            if (!btn.disabled) {
+                btn.classList.toggle('selected');
+            }
+        };
+        container.appendChild(btn);
+    });
+}
+
 function updateCopyDays() {
     const selectedDay = document.getElementById('daySelect').value;
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -250,6 +277,15 @@ function toggleDayOff() {
     const isDayOff = document.getElementById('dayOffCheck').checked;
     document.getElementById('shiftIdInput').disabled = isDayOff;
     document.getElementById('copyDaysSection').style.display = isDayOff ? 'none' : 'block';
+    
+    // Show/hide day off days section
+    const dayOffSection = document.getElementById('dayOffDaysSection');
+    if (isDayOff) {
+        dayOffSection.style.display = 'block';
+        updateDayOffDays();
+    } else {
+        dayOffSection.style.display = 'none';
+    }
 }
 
 function handlePhotoSelect(event) {
@@ -293,9 +329,20 @@ async function saveShift() {
     }
 
     const weekKey = getWeekKey(weeks[currentWeekIndex]);
-    const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
-    const copyDays = Array.from(copyButtons).map(b => b.dataset.day);
-    const allDays = [selectedDay, ...copyDays];
+    
+    let allDays = [selectedDay];
+    
+    if (isDayOff) {
+        // Get selected day off days
+        const dayOffButtons = document.querySelectorAll('#dayOffDaysButtons .copy-day-btn.selected');
+        const dayOffDays = Array.from(dayOffButtons).map(b => b.dataset.day);
+        allDays = dayOffDays;
+    } else {
+        // Get copy days for regular shifts
+        const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
+        const copyDays = Array.from(copyButtons).map(b => b.dataset.day);
+        allDays = [selectedDay, ...copyDays];
+    }
 
     for (const day of allDays) {
         const existing = await getShift(weekKey, day);
@@ -316,7 +363,7 @@ async function saveShift() {
             savedId = await saveShiftToDB(shiftData);
         }
 
-        if (day === selectedDay) {
+        if (day === selectedDay && !isDayOff) {
             for (const photo of pendingPhotos) {
                 await savePhotoToDB(savedId, photo.data);
             }
