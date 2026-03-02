@@ -528,30 +528,31 @@ async function deletePhoto(photoId) {
 
 function editShift() {
     if (!currentDetailShift) return;
+    
+    const shiftToEdit = currentDetailShift;
     closeDetailModal();
 
-    editingShift = currentDetailShift;
-    pendingPhotos = [];
+    setTimeout(() => {
+        editingShift = shiftToEdit;
+        pendingPhotos = [];
 
-    // 제목을 Add/Edit Shift로 변경
-    document.getElementById('modalTitle').textContent = 'Add/Edit Shift';
+        document.getElementById('modalTitle').textContent = 'Add/Edit Shift';
+        document.getElementById('shiftIdInput').value = shiftToEdit.shiftId || '';
+        document.getElementById('shiftIdInput').disabled = false;
+        document.getElementById('dayOffCheck').checked = shiftToEdit.isDayOff || false;
+        document.getElementById('daySelect').value = shiftToEdit.day;
+        document.getElementById('daySelect').disabled = true;
+        document.getElementById('photoPreviewArea').innerHTML = '';
+        document.getElementById('copyDaysSection').style.display = 'none';
+        document.getElementById('dayOffDaysSection').style.display = 'none';
 
-    // 기존 데이터 채우기
-    document.getElementById('shiftIdInput').value = currentDetailShift.shiftId || '';
-    document.getElementById('shiftIdInput').disabled = false;
-    document.getElementById('dayOffCheck').checked = currentDetailShift.isDayOff || false;
-    document.getElementById('daySelect').value = currentDetailShift.day;
-    document.getElementById('daySelect').disabled = true; // 요일은 변경 못하게
-    document.getElementById('photoPreviewArea').innerHTML = '';
-    document.getElementById('copyDaysSection').style.display = 'none'; // 수정시 copy 숨김
-    document.getElementById('dayOffDaysSection').style.display = 'none';
+        if (shiftToEdit.isDayOff) {
+            document.getElementById('shiftIdInput').disabled = true;
+        }
 
-    if (currentDetailShift.isDayOff) {
-        document.getElementById('shiftIdInput').disabled = true;
-    }
-
-    updateCopyDays();
-    document.getElementById('addModal').classList.add('active');
+        updateCopyDays();
+        document.getElementById('addModal').classList.add('active');
+    }, 300);
 }
 
 // ===== FULLSCREEN PHOTO =====
