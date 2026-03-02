@@ -1,6 +1,6 @@
 let db;
-const DB_NAME = 'MyShiftDB';
-const DB_VERSION = 2;
+const DB_NAME = 'MyShiftDB_v3';
+const DB_VERSION = 1;
 
 function initDB() {
     return new Promise((resolve, reject) => {
