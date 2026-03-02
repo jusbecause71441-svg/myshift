@@ -228,10 +228,11 @@ let editingShift = null;
 function openAddModal(dayName) {
     editingShift = null;
     pendingPhotos = [];
-    document.getElementById('modalTitle').textContent = 'Add Shift';
+    document.getElementById('modalTitle').textContent = 'Add/Edit Shift';
     document.getElementById('shiftIdInput').value = '';
-    document.getElementById('dayOffCheck').checked = false;
     document.getElementById('shiftIdInput').disabled = false;
+    document.getElementById('dayOffCheck').checked = false;
+    document.getElementById('daySelect').disabled = false;
     document.getElementById('copyDaysSection').style.display = 'block';
     document.getElementById('dayOffDaysSection').style.display = 'none';
     document.getElementById('photoPreviewArea').innerHTML = '';
@@ -420,14 +421,18 @@ function editShift() {
     closeDetailModal();
     editingShift = currentDetailShift;
     pendingPhotos = [];
-    document.getElementById('modalTitle').textContent = 'Edit Shift';
+    document.getElementById('modalTitle').textContent = 'Add/Edit Shift';
     document.getElementById('shiftIdInput').value = currentDetailShift.shiftId || '';
+    document.getElementById('shiftIdInput').disabled = false;
     document.getElementById('dayOffCheck').checked = currentDetailShift.isDayOff || false;
-    document.getElementById('shiftIdInput').disabled = currentDetailShift.isDayOff || false;
     document.getElementById('daySelect').value = currentDetailShift.day;
+    document.getElementById('daySelect').disabled = true;
     document.getElementById('photoPreviewArea').innerHTML = '';
-    document.getElementById('copyDaysSection').style.display = 'block';
+    document.getElementById('copyDaysSection').style.display = 'none';
     document.getElementById('dayOffDaysSection').style.display = 'none';
+    if (currentDetailShift.isDayOff) {
+        document.getElementById('shiftIdInput').disabled = true;
+    }
     updateCopyDays();
     document.getElementById('addModal').classList.add('active');
 }
