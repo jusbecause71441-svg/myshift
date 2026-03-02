@@ -114,6 +114,7 @@ async function renderWeekView() {
                     const img = document.createElement('img');
                     img.className = 'shift-thumbnail';
                     img.src = photos[0].data;
+                    img.style.pointerEvents = 'none';
                     shiftCard.appendChild(img);
                 }
                 shiftCard.onclick = () => openDetailModal(shift);
@@ -239,20 +240,13 @@ function updateDayOffDays() {
     days.forEach((d, i) => {
         const btn = document.createElement('button');
         btn.className = 'copy-day-btn';
-        // Current day is always selected and disabled
+        // Hide current day button (it's always included)
         if (fullDays[i] === selectedDay) {
-            btn.className += ' selected';
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
+            btn.className += ' hidden';
         }
         btn.textContent = d;
         btn.dataset.day = fullDays[i];
-        btn.onclick = () => {
-            if (!btn.disabled) {
-                btn.classList.toggle('selected');
-            }
-        };
+        btn.onclick = () => btn.classList.toggle('selected');
         container.appendChild(btn);
     });
 }
@@ -336,7 +330,8 @@ async function saveShift() {
         // Get selected day off days
         const dayOffButtons = document.querySelectorAll('#dayOffDaysButtons .copy-day-btn.selected');
         const dayOffDays = Array.from(dayOffButtons).map(b => b.dataset.day);
-        allDays = dayOffDays;
+        // Always include current day
+        allDays = [selectedDay, ...dayOffDays];
     } else {
         // Get copy days for regular shifts
         const copyButtons = document.querySelectorAll('.copy-day-btn.selected');
