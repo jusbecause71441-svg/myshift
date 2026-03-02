@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MyShift</title>
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="MyShift">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="./styles.css">
+    <base href=".">
 </head>
 <body>
 <div id="mainScreen">
@@ -17,7 +18,12 @@
         <button class="btn-add" onclick="openAddModal()">+</button>
     </div>
     <div class="week-selector" id="weekSelector"></div>
-    <div class="week-view" id="weekView"></div>
+    <div class="week-view" id="weekView">
+        <!-- Loading indicator -->
+        <div style="text-align: center; padding: 40px; color: #64748b;">
+            <div>Loading MyShift...</div>
+        </div>
+    </div>
 </div>
 
 <div class="modal-overlay" id="addModal">
@@ -92,6 +98,6 @@
     <button class="btn-close-fullscreen" onclick="closeFullscreen()">X</button>
 </div>
 
-<script src="app.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>

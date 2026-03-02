@@ -21,7 +21,7 @@ function initDB() {
     });
 }
 
-let currentWeekIndex = 1;
+let currentWeekIndex = 1; // Default to current week (middle of 3 weeks)
 let weeks = [];
 
 function getWeeks() {
@@ -35,6 +35,15 @@ function getWeeks() {
         const weekStart = new Date(sunday);
         weekStart.setDate(sunday.getDate() + (w * 7));
         weeks.push(weekStart);
+    }
+    // Set currentWeekIndex to the actual current week
+    for (let i = 0; i < weeks.length; i++) {
+        const weekEnd = new Date(weeks[i]);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        if (today >= weeks[i] && today <= weekEnd) {
+            currentWeekIndex = i;
+            break;
+        }
     }
 }
 
@@ -433,8 +442,33 @@ function closeFullscreen() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await initDB();
-    await renderApp();
+    try {
+        console.log('Initializing MyShift app...');
+        await initDB();
+        console.log('Database initialized successfully');
+        await renderApp();
+        console.log('App rendered successfully');
+    } catch (error) {
+        console.error('Failed to initialize app:', error);
+        // Show error message to user
+        const weekView = document.getElementById('weekView');
+        if (weekView) {
+            weekView.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading app. Please refresh the page.</div>';
+        }
+    }
+});
+
+// Also initialize on window load as fallback
+window.addEventListener('load', async () => {
+    if (!document.getElementById('weekView').children.length) {
+        console.log('Fallback initialization...');
+        try {
+            await initDB();
+            await renderApp();
+        } catch (error) {
+            console.error('Fallback initialization failed:', error);
+        }
+    }
 });
 
 if ('serviceWorker' in navigator) {
