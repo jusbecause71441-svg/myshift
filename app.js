@@ -489,7 +489,7 @@ async function openDetailModal(shift) {
         photos.forEach(photo => {
             html += `
                 <div class="detail-photo-item">
-                    <img src="${photo.data}" onclick="openFullscreen('${photo.data}')" alt="Shift photo">
+                    <img src="${photo.data}" data-photoid="${photo.id}" class="detail-photo-img" alt="Shift photo">
                     <button class="detail-photo-delete" onclick="deletePhoto(${photo.id})">✕</button>
                 </div>`;
         });
@@ -499,6 +499,12 @@ async function openDetailModal(shift) {
     }
 
     content.innerHTML = html;
+
+    // 사진 클릭하면 fullscreen으로 열기
+    content.querySelectorAll('.detail-photo-img').forEach(img => {
+        img.addEventListener('click', () => openFullscreen(img.src));
+    });
+
     document.getElementById('detailModal').classList.add('active');
 }
 
